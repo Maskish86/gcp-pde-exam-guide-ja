@@ -20,23 +20,23 @@
 ```mermaid
 flowchart TB
 
-subgraph S["📡 Sources"]
+subgraph S["ソース"]
     A1[アプリケーション / ログ]
     A2[運用DB]
     A3[外部ファイル]
 end
 
-subgraph I["🚚 取り込み（Ingestion）"]
+subgraph I["取り込み(Ingestion)"]
     B1[Pub/Sub]
     B2[Cloud Storage]
     B3[Datastream]
 end
 
-subgraph P["⚙️ 処理"]
+subgraph P["処理"]
     C1[Dataflow]
 end
 
-subgraph W["💾 BigQueryウェアハウス"]
+subgraph W["BigQueryウェアハウス"]
     direction LR
     D1[生データ]
     C2[Dataform]
@@ -44,31 +44,31 @@ subgraph W["💾 BigQueryウェアハウス"]
     D3[キュレート / マート]
 end
 
-subgraph SV["⚡ サービング"]
+subgraph SV["サービング"]
     E1[Bigtable]
 end
 
-subgraph CO["📊 利用"]
+subgraph CO["利用"]
     F1[Looker / BI]
     F2[アプリ / API]
 end
 
-subgraph OR["🎼 オーケストレーション"]
+subgraph OR["オーケストレーション"]
     O1[Composer / Workflows]
 end
 
-%% Sources → Ingestion
+%% Sources -> Ingestion
 A1 -->|イベント| B1
-A2 -->|変更データキャプチャ（CDC）| B3
+A2 -->|変更データキャプチャ(CDC)| B3
 A3 -->|ファイル| B2
 
-%% Ingestion → Processing & Storage
+%% Ingestion -> Processing & Storage
 B1 -->|ストリーム| C1
 B2 -->|バッチ| C1
 B2 -->|ロードジョブ| D1
 B3 -->|レプリケーション| D1
 
-%% Processing → Storage & Serving
+%% Processing -> Storage & Serving
 C1 -->|ストリーミング書き込み| D1
 C1 -->|低レイテンシ書き込み| E1
 

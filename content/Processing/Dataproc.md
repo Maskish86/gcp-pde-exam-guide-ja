@@ -37,14 +37,14 @@ gcloud dataproc clusters create my-cluster \
 ```mermaid
 flowchart TB
 
-ORC["🎼 Composer<br/>(ジョブをスケジュール)"]
+ORC["Composer<br/>(ジョブをスケジュール)"]
 
-subgraph SRC["📥 ソース"]
+subgraph SRC["ソース"]
     GCS_IN["Cloud Storage<br/>(Parquet · Avro · ORC)"]
     BQ_IN[BigQuery]
 end
 
-subgraph DPC["⚙️ Dataproc"]
+subgraph DPC["Dataproc"]
     subgraph CLUSTER["クラスタ（マネージド）"]
         direction LR
         M["Master<br/>(YARN · コーディネータ)"]
@@ -54,7 +54,7 @@ subgraph DPC["⚙️ Dataproc"]
     SLS["Serverless<br/>(バッチ投入 · クラスタ運用なし)"]
 end
 
-subgraph SNK["📤 出力先"]
+subgraph SNK["出力先"]
     GCS_OUT[Cloud Storage]
     BQ_OUT[BigQuery]
 end
