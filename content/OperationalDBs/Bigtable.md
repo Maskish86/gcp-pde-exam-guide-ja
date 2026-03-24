@@ -1,186 +1,186 @@
 # Bigtable
 
-Bigtable is GCP's managed wide-column database for high-throughput, low-latency access to large datasets. It excels at key-value and time-series workloads where you need predictable reads/writes at scale.
+Bigtable は、大規模データセットへの高スループット・低レイテンシアクセスを実現する、GCPマネージドのワイドカラムデータベースである。スケール下でも予測可能な読み書きが必要な、key-value と時系列ワークロードで強い。
 
-## Use Cases
-- Serving layer for large, sparse datasets with millisecond latency.
-- Time-series or IoT event storage with high write rates.
-- Feature store or lookup tables for online applications and ML.
-- Operational aggregates too hot for [[Storage/BigQuery|BigQuery]].
-- Massive key-value datasets with high-throughput random reads and writes.
+## ユースケース
+- ミリ秒レイテンシで、大規模かつスパースなデータセットを提供するサービング層。
+- 高書き込みレートの時系列/IoTイベントストレージ。
+- オンラインアプリ/ML向けの特徴量ストア、またはルックアップテーブル。
+- [[Storage/BigQuery|BigQuery]] ではホットすぎる運用集計。
+- 高スループットなランダム読み書きが必要な巨大key-valueデータセット。
 
-## Mental Model
-- Rows are stored sorted lexicographically by row key and distributed by key range across tablets.
-- A row is the atomic unit of read/write — no joins, no secondary indexes.
-- Schema is flexible, but **row key design determines performance and scale** above everything else.
-- Bigtable stores rows, not files or large blobs.
-- Bigtable supports the **HBase API** — existing HBase/Cassandra-style workloads can migrate with minimal rewrite, same row-key design patterns apply.
+## メンタルモデル
+- 行はrow keyの辞書順でソートされ、キー範囲でtabletに分割されて分散配置される。
+- 行は読み書きの原子単位である（joinなし、セカンダリインデックスなし）。
+- スキーマは柔軟だが、何よりも **row key設計が性能とスケールを決める**。
+- Bigtableが保存するのは行であり、ファイルや巨大blobではない。
+- Bigtableは **HBase API** をサポートする。既存のHBase/Cassandra風ワークロードは最小限の書き換えで移行しやすく、row key設計パターンも同様に適用される。
 
-## Data Model Hierarchy
+## データモデル階層
 
 ```mermaid
 flowchart TB
 
 %% ACCESS
-subgraph ACCESS["👤 Access Layer"]
-    APP["Clients / Applications"]
+subgraph ACCESS["👤 アクセス層"]
+    APP["クライアント / アプリケーション"]
     API["Bigtable API"]
 end
 
 %% INFRASTRUCTURE
-subgraph INFRA["⚙️ Serving Infrastructure"]
-    INST["Instance<br/>(top-level container)"]
-    CL["Cluster<br/>(regional · replication boundary)"]
-    ND["Nodes<br/>(compute · scales linearly)"]
+subgraph INFRA["⚙️ サービング基盤"]
+    INST["インスタンス<br/>(トップレベルコンテナ)"]
+    CL["クラスタ<br/>(リージョン · レプリケーション境界)"]
+    ND["ノード<br/>(コンピュート · 線形スケール)"]
     INST --> CL --> ND
 end
 
 %% TABLETS — bridge between data model and serving/storage
-TAB["🗂️ Tablets<br/>(contiguous row-key ranges)"]
+TAB["🗂️ タブレット<br/>(連続するrow key範囲)"]
 
 %% DATA MODEL
-subgraph DATA["📋 Data Model"]
-    TBL["Table<br/>(rows sorted lexicographically by row key)"]
-    CF["Column Family<br/>(GC policy: TTL or version-based)"]
-    CQ["Column Qualifier<br/>(named column within a family)"]
-    CELL["Cell<br/>(row key + family + qualifier + timestamp → value)"]
+subgraph DATA["📋 データモデル"]
+    TBL["テーブル<br/>(行はrow keyの辞書順でソート)"]
+    CF["カラムファミリー<br/>(GCポリシー: TTL またはバージョンベース)"]
+    CQ["カラムクオリファイア<br/>(ファミリー内の列名)"]
+    CELL["セル<br/>(row key + family + qualifier + timestamp → 値)"]
     TBL --> CF --> CQ --> CELL
 end
 
 %% STORAGE
-subgraph STORE["🗄️ Storage Layer"]
-    COL["Colossus<br/>(distributed file system)"]
+subgraph STORE["🗄️ ストレージ層"]
+    COL["Colossus<br/>(分散ファイルシステム)"]
 end
 
 %% ACCESS FLOW
 APP --> API --> INST
 
 %% TABLE PARTITIONED INTO TABLETS
-TBL -->|partitioned into| TAB
+TBL -->|に分割| TAB
 
 %% NODES SERVE TABLETS (not own — tablets can move between nodes)
-ND -.->|serves| TAB
+ND -.->|提供| TAB
 
 %% TABLETS STORED IN COLOSSUS
-TAB -->|stored in| COL
+TAB -->|に保存| COL
 ```
 
-| Level             | Description                                                                    |
+| レベル             | 説明                                                                           |
 | ----------------- | ------------------------------------------------------------------------------ |
-| **Instance**      | Top-level container for all Bigtable resources                                 |
-| **Cluster**       | Serving nodes within a region; supports replication across clusters            |
-| **Node**          | Compute capacity for reads/writes; scales linearly                             |
-| **Table**         | Rows keyed by row key, grouped into column families                            |
-| **Column family** | Logical grouping of columns; unit of storage and GC policy                     |
-| **Cell**          | Value at a (row key, column, timestamp) coordinate; can have multiple versions |
+| **Instance**      | Bigtableリソース全体の最上位コンテナ                                            |
+| **Cluster**       | リージョン内のサービングノード群（クラスタ間レプリケーションに対応）             |
+| **Node**          | 読み書きの計算キャパシティ（線形にスケール）                                     |
+| **Table**         | row keyでキー付けされた行（column familyでグルーピング）                        |
+| **Column family** | 列の論理グループ（保存とGCポリシーの単位）                                      |
+| **Cell**          | （row key, column, timestamp）に対応する値（複数バージョンを持てる）             |
 
-GC rules: TTL or version-based cleanup applied per column family.
-- TTL GC is asynchronous, so it manages storage/cost but not immediate read blocking; use timestamp range filters to enforce strict "last N days" access.
-- TTL is not a read-time filter; unlike BigQuery partition expiration, it won’t guarantee old rows are hidden—use timestamp range filters.
-- Timestamp range filters enforce read-time limits even when old cells still exist physically.
+GCルール：column family単位で、TTLまたはバージョンベースのクリーンアップを適用する。
+- TTL GCは非同期のため、ストレージ/コストは管理できるが即時に読み取りをブロックできない。「直近N日」の厳密なアクセス制限にはtimestamp range filtersを使う。
+- TTLはread-timeフィルタではない。BigQueryのパーティション期限とは違い、古い行が隠れることは保証されない。timestamp range filtersを使う。
+- timestamp range filtersは、古いcellが物理的に残っていてもread-timeの制限を強制できる。
 
-## Row Key Design (Critical)
+## Row key設計（最重要）
 
-Good keys spread traffic evenly and match access patterns. Row key is part of every read/write — keep it short but meaningful.
+良いキーはトラフィックを均等に分散し、アクセスパターンに一致する。row keyはすべてのread/writeに関わるため、短く、しかし意味を持たせる。
 
-**Anti-patterns:**
+**アンチパターン:**
 - Monotonically increasing keys (timestamps, sequential IDs) → all writes hit the same tablet.
 - Lexically close keys generated close in time → same root cause.
 
-**Recommended patterns:**
+**推奨パターン:**
 
 | Pattern                            | When To Use                                                       |
 | ---------------------------------- | ----------------------------------------------------------------- |
-| Reverse timestamp                  | Time-series where latest records are read most often              |
-| Hash prefix                        | Distribute writes when key itself isn't the access pattern        |
-| Composite key (`entity#timestamp`) | Range scans over an entity's history                              |
-| UUID v4 prefix                     | Random distribution; avoid UUID v1 (time-based, still sequential) |
+| Reverse timestamp                  | 最新レコードを最も頻繁に読む時系列                               |
+| Hash prefix                        | キー自体がアクセスパターンではないが、書き込みを分散したい場合      |
+| Composite key (`entity#timestamp`) | エンティティの履歴に対するレンジスキャン                          |
+| UUID v4 prefix                     | ランダム分布。UUID v1（時間ベースで実質連番）は避ける              |
 
-**How hot-spotting works:**
-- Hot-spotting = workload skewed to a small number of nodes instead of distributed evenly.
-- Bigtable distributes writes by **row key only** — not via a GCP load balancer.
-- Replication does **not** affect where data is originally written; it only copies data after the fact.
-- Column count does **not** affect distribution — Bigtable is wide-column by design.
+**ホットスポットが起きる仕組み:**
+- ホットスポット = ワークロードが均等分散されず、少数ノードへ偏ること。
+- Bigtableは **row keyのみ** で書き込みを分散する（GCPのロードバランサで分散されるわけではない）。
+- レプリケーションは「最初に書き込まれる場所」には影響せず、後段でコピーするだけ。
+- 列数は分散に影響しない（Bigtableはワイドカラム前提）。
 
 **UUID v1 vs v4:**
-- UUID v1 is time-based → sequential prefix → writes cluster on the same tablet, despite "looking" random.
-- UUID v4 is fully random → writes spread evenly across key space.
+- UUID v1 は時間ベース → 先頭が連番 → 「ランダムに見えても」同じtabletに書き込みが偏る。
+- UUID v4 は完全ランダム → キー空間全体に均等に分散しやすい。
 
-## Data Modeling Tips
-- Keep related columns in the same column family to reduce I/O.
-- Favor sparse columns over wide rows when data is optional.
-- Use cell versions for time-based retention instead of manual deletes.
-- Model queries around primary key access and range scans — there are no secondary indexes.
+## データモデリングのヒント
+- 関連列は同じcolumn familyにまとめ、I/Oを減らす。
+- 任意データはワイド行よりスパース列を優先する。
+- 手動削除よりcell versionsを使って時系列保持を実現する。
+- クエリは主キーアクセスとレンジスキャンを前提に設計する（セカンダリインデックスはない）。
 
-## Ingestion And Processing
-- Stream events via [[Ingestion/PubSub|Pub/Sub]] → [[Processing/Dataflow|Dataflow]] → Bigtable.
-- Batch load from [[Cloud-Storage|Cloud Storage]] using Dataflow or bulk APIs.
-- Use [[Processing/Dataproc|Dataproc]] for Spark jobs that read/write Bigtable at scale.
-- Export or replicate into [[Storage/BigQuery|BigQuery]] for analytics.
+## 取り込みと処理
+- イベントは [[Ingestion/PubSub|Pub/Sub]] → [[Processing/Dataflow|Dataflow]] → Bigtable でストリーミング投入する。
+- [[Cloud-Storage|Cloud Storage]] からは、Dataflowまたはbulk APIでバッチロードする。
+- 大規模にBigtableを読み書きするSparkジョブには [[Processing/Dataproc|Dataproc]] を使う。
+- 分析用途では [[Storage/BigQuery|BigQuery]] へエクスポート/レプリケートする。
 
-## Performance And Cost
-- Scale nodes for throughput — under-provisioning causes latency spikes, not errors.
-- Keep storage utilization per node below 60% (latency-sensitive), 70% (throughput), 80% absolute max — exceeding triggers compaction and p99 spikes.
-- Use column/version filters to limit data returned per read.
-- Avoid large unparallelized range scans; split by key range for parallel reads.
-- Set TTL GC rules per column family to control storage growth and cost.
+## 性能とコスト
+- スループットのためにnodeをスケールする（過小プロビジョニングはエラーではなくレイテンシ急増として現れる）。
+- ノードあたりのストレージ使用率は 60%未満（レイテンシ重視）、70%（スループット重視）、80%（絶対上限）を目安にする。超えるとcompactionが走り、p99が悪化する。
+- 1回のreadで返すデータを、column/version filtersで絞る。
+- 並列化されない大きなレンジスキャンを避ける。キー範囲で分割して並列に読む。
+- ストレージ増加とコスト制御のため、column familyごとにTTL GCルールを設定する。
 
 **Node failure:**
-- Bigtable automatically reassigns tablets to healthy nodes with no data loss — unlike Dataproc/HBase, node failover is fully managed.
+- Bigtableはデータ損失なく、tabletを健全ノードへ自動再割り当てする（Dataproc/HBaseと異なり、ノードフェイルオーバーはフルマネージド）。
 
 **Storage type:**
 - Fixed at instance creation: SSD (low latency, high throughput) or HDD (lower cost, higher latency).
-- To switch types, create a new instance and migrate data — in-place toggle is not supported.
+- 種別を切り替えるには、新しいinstanceを作成してデータ移行する（インプレース切り替えは非対応）。
 
-## Multi-Cluster Routing And App Profiles
+## マルチクラスタルーティングとApp profiles
 
 Route workloads to dedicated clusters; data replicates automatically — no duplication needed.
 
 ```mermaid
 flowchart TB
 
-subgraph SRC["📥 Sources"]
-    APP[Applications]
+subgraph SRC["📥 ソース"]
+    APP[アプリケーション]
     GCS[Cloud Storage]
 end
 
-PS["Pub/Sub<br/>(replay · burst protection)"]
+PS["Pub/Sub<br/>(リプレイ · バースト保護)"]
 DFI[Dataflow]
 
-subgraph BT["⚡ Bigtable Instance"]
+subgraph BT["⚡ Bigtableインスタンス"]
     direction LR
-    subgraph CA["Cluster A — Serving"]
+    subgraph CA["クラスタA — サービング"]
         AP1[realtime-profile]
     end
-    subgraph CB["Cluster B — Analytics"]
+    subgraph CB["クラスタB — 分析"]
         AP2[analytics-profile]
     end
-    CA <-.->|async replication| CB
+    CA <-.->|非同期レプリケーション| CB
 end
 
 DFE[Dataflow]
 BQ[BigQuery]
 
-subgraph OUT["📊 Consumers"]
-    C1[Apps / APIs]
-    C3[ML Feature Store]
-    C2[Batch Analytics]
+subgraph OUT["📊 利用者（Consumers）"]
+    C1[アプリ / API]
+    C3[ML特徴量ストア]
+    C2[バッチ分析]
 end
 
 %% Ingest — applications buffer through Pub/Sub
-APP -->|events| PS
-GCS -->|batch load| DFI
-PS -->|stream| DFI
-DFI -->|low-latency write| AP1
+APP -->|イベント| PS
+GCS -->|バッチロード| DFI
+PS -->|ストリーム| DFI
+DFI -->|低レイテンシ書き込み| AP1
 
 %% Serving
-AP1 -->|ms reads| C1
-AP1 -->|feature lookups| C3
+AP1 -->|ミリ秒読み取り| C1
+AP1 -->|特徴量参照| C3
 
-%% Analytics export — Bigtable is not for large scans
-AP2 -->|export| DFE
-DFE -->|load| BQ
-BQ -->|analytics queries| C2
+%% Analytics export — Bigtableは大規模スキャン用途ではない
+AP2 -->|エクスポート| DFE
+DFE -->|ロード| BQ
+BQ -->|分析クエリ| C2
 ```
 
 **App profiles** map each workload to its cluster at connection time.
@@ -194,25 +194,25 @@ BQ -->|analytics queries| C2
 - Eliminates OLTP vs. analytics resource contention.
 - Each cluster scales independently.
 - Automatic failover if a cluster goes down.
-- Replication is async — Cluster B reads may be slightly stale.
+- レプリケーションは非同期のため、Cluster Bの読み取りはわずかにstaleになりうる。
 
-## Security And Governance
-- Least-privilege [[Security/IAM|IAM]] roles for admin vs data access.
-- CMEK via [[Cloud-KMS|Cloud KMS]] if required.
-- Enable audit logs to track admin activity and data access patterns.
+## セキュリティとガバナンス
+- admin と data access で役割を分け、最小権限の [[Security/IAM|IAM]] ロールを付与する。
+- 必要なら [[Cloud-KMS|Cloud KMS]] 経由でCMEKを使う。
+- 監査ログを有効化し、管理操作とデータアクセスのパターンを追跡する。
 
-## Common Pitfalls
+## よくある落とし穴
 - Poor row key design causing hot tablets — monotonically increasing keys (timestamps, UUID v1) funnel all writes to the same tablet; use reverse timestamps, hash prefixes, or composite keys to distribute load.
 - Treating Bigtable like a relational database — no joins, secondary indexes, or cross-row transactions; all query patterns must be designed around row key access and range scans only.
 - Unparallelized range scans on large tables — a single scanner runs on one node; split the key range into sub-ranges and scan in parallel to use multiple nodes.
 - Missing GC rules causing unbounded storage growth — cells accumulate indefinitely without TTL or version-based GC rules per column family; set and validate GC policies at table design time.
-- Relying on TTL as a read-time filter — TTL cleanup is asynchronous; old cells may still be physically present when read; use timestamp range filters to enforce strict access windows.
+- TTLをread-timeフィルタとして扱う — TTLクリーンアップは非同期で、読み取り時に古いcellが物理的に残ることがある。厳密なアクセス窓はtimestamp range filtersで強制する。
 - Exceeding node storage thresholds — keeping utilization above 70–80% per node triggers compaction and p99 latency spikes; scale nodes before hitting the limit, not after.
 - Storing large blobs or analytical files — degrades tablet performance and inflates storage cost; use [[Cloud-Storage|Cloud Storage]] for blobs, [[Storage/BigQuery|BigQuery]] for analytics.
 
-## Quick Checklist
-- Define access patterns and row key strategy before anything else.
--  Choose column families and configure GC rules (TTL or version-based).
--  Size nodes based on read/write throughput targets.
--  Plan ingestion path (Pub/Sub → Dataflow or batch load from GCS).
--  Set [[Security/IAM|IAM]] roles and CMEK requirements.
+## クイックチェックリスト
+- 何より先に、アクセスパターンとrow key戦略を定義する。
+- column families を選び、GCルール（TTLまたはバージョンベース）を設定する。
+- 読み書きスループット目標に基づいてnodeをサイジングする。
+- 取り込み経路（Pub/Sub → Dataflow、またはGCSからのバッチロード）を計画する。
+- [[Security/IAM|IAM]] ロールとCMEK要件を設定する。

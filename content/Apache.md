@@ -1,221 +1,223 @@
-## The Apache Ecosystem
+# Apache
 
-The [Apache Software Foundation (ASF)](https://apache.org) is a non-profit that stewards 350+ open-source projects and is the source of most big data infrastructure tools used before cloud-native services became mainstream. It became the backbone of big data infrastructure through the 2000s and 2010s, largely driven by three influential Google research papers that the open-source community implemented independently:
+## Apacheエコシステム
 
-- **Google File System (2003)** → inspired **HDFS**
-- **MapReduce (2004)** → inspired **Hadoop MapReduce**
-- **Bigtable (2006)** → inspired **Apache HBase**
+[Apache Software Foundation (ASF)](https://apache.org) は非営利団体で、350+ のオープンソースプロジェクトを統括しており、クラウドネイティブなサービスが主流になる前に使われていたビッグデータ基盤ツールの多くの源流でもある。2000年代〜2010年代にかけて、オープンソースコミュニティが独立に実装した3本の影響力の大きいGoogle研究論文を起点として、ビッグデータ基盤の中核になった。
 
-From these roots, an entire layered ecosystem grew:
+- **Google File System (2003)** → **HDFS** の着想元
+- **MapReduce (2004)** → **Hadoop MapReduce** の着想元
+- **Bigtable (2006)** → **Apache HBase** の着想元
 
-| Layer           | Key Tools                        | Purpose                                      |
+これらを起点に、レイヤードなエコシステム全体が発展した。
+
+| レイヤー        | 主要ツール                        | 目的                                         |
 | --------------- | -------------------------------- | -------------------------------------------- |
-| **Compute**     | Hadoop, Spark, Flink             | Processing data at scale                     |
-| **Storage**     | HDFS, HBase                      | Storing and retrieving large datasets        |
-| **SQL**         | Hive, Impala                     | Querying data with SQL                       |
-| **Messaging**   | Kafka, Pulsar                    | Event streaming between systems              |
-| **Orchestration** | Airflow, Oozie                 | Scheduling and coordinating jobs             |
-| **Governance**  | Atlas, ZooKeeper                 | Metadata management and cluster coordination |
+| **コンピュート** | Hadoop, Spark, Flink             | 大規模データの処理                            |
+| **ストレージ**   | HDFS, HBase                      | 大規模データセットの保存と取得                 |
+| **SQL**         | Hive, Impala                     | SQLでデータをクエリする                       |
+| **メッセージング** | Kafka, Pulsar                    | システム間のイベントストリーミング             |
+| **オーケストレーション** | Airflow, Oozie                 | ジョブのスケジューリングと調整                |
+| **ガバナンス**   | Atlas, ZooKeeper                 | メタデータ管理とクラスタ協調                  |
 
-**The core trade-off:** Apache tools are powerful and flexible but require significant operational effort — you provision clusters, manage configurations, handle scaling, and maintain upgrades yourself. GCP managed services replace this operational burden while preserving the same architectural patterns.
+**コアのトレードオフ:** Apacheツールは強力で柔軟だが、運用負荷が大きい。クラスタのプロビジョニング、設定管理、スケーリング、アップグレード維持を自分で担う必要がある。GCPのマネージドサービスは、同じアーキテクチャパターンを保ちながら、この運用負荷を置き換える。
 
-> **Core principle:** Apache = infrastructure you manage. GCP = managed service replacing that layer.
+> **コア原則:** Apache = 自分で運用するインフラ。GCP = そのレイヤーを置き換えるマネージドサービス。
 
-## Distributed Processing / Compute
+## 分散処理 / コンピュート
 
-- [[Processing/Dataproc\|Dataproc]] runs Hadoop and Spark natively on managed clusters — bring your existing jobs, GCP handles provisioning and patching.
-- [[Processing/Dataflow\|Dataflow]] goes further: fully serverless, auto-scaling pipelines using the Apache Beam model — no cluster to manage at all.
-- [[Dataproc]] preserves the Spark/Hadoop API surface (minimal code changes, good for lift-and-shift); [[Dataflow]] abstracts the runner entirely (preferred for new streaming pipelines).
-- Flink maps to Dataflow — both are built for stateful, event-time stream processing.
+- [[Processing/Dataproc\|Dataproc]] は、マネージドクラスタ上で Hadoop と Spark をネイティブに動かす。既存ジョブを持ち込み、プロビジョニングとパッチ適用はGCPが担う。
+- [[Processing/Dataflow\|Dataflow]] はさらに踏み込み、Apache Beamモデルでフルサーバレスかつ自動スケールのパイプラインを提供する。管理すべきクラスタは存在しない。
+- [[Dataproc]] はSpark/HadoopのAPIサーフェスを維持する（コード変更最小でリフト＆シフト向き）。一方、[[Dataflow]] はランナーを完全に抽象化する（新規ストリーミングパイプラインではこちらが第一候補）。
+- FlinkはDataflowに対応づけられる。どちらもステートフルでイベント時刻（event-time）前提のストリーム処理に向く。
 
-| Apache        | Role                        | GCP Equivalent                                                                        | Notes                                          |
+| Apache        | 役割                         | GCP相当                                                                               | 補足                                           |
 | ------------- | --------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| Apache Hadoop | Batch processing ecosystem  | [[Processing/Dataproc\|Dataproc]]                                                     | Lift-and-shift Hadoop jobs                     |
-| Apache Spark  | Batch + streaming compute   | [[Processing/Dataproc\|Dataproc]] / [[Processing/Dataflow\|Dataflow]]                 | Dataproc = native Spark, Dataflow = Beam model |
-| Apache Flink  | Real-time stream processing | [[Processing/Dataflow\|Dataflow]]                                                     | Conceptual equivalent                          |
+| Apache Hadoop | バッチ処理エコシステム         | [[Processing/Dataproc\|Dataproc]]                                                     | Hadoopジョブのリフト＆シフト                   |
+| Apache Spark  | バッチ + ストリーミング計算     | [[Processing/Dataproc\|Dataproc]] / [[Processing/Dataflow\|Dataflow]]                 | Dataproc = ネイティブSpark、Dataflow = Beamモデル |
+| Apache Flink  | リアルタイムのストリーム処理    | [[Processing/Dataflow\|Dataflow]]                                                     | 概念的な対応                                   |
 
-## Storage
+## ストレージ
 
-- The foundational Hadoop modernisation shift: **HDFS couples storage to cluster nodes** — the cluster must stay alive to retain data; [[Storage/Cloud-Storage\|Cloud Storage]] decouples them entirely, so clusters can spin up, run, and shut down without data loss.
-- [[OperationalDBs/Bigtable\|Bigtable]] is the direct HBase equivalent — HBase was actually inspired by Google's internal Bigtable paper, sharing the same wide-column, row-key model optimised for low-latency reads at scale.
-- Cassandra's mapping depends on access pattern: wide-column low-latency → **Bigtable**; multi-region strong consistency → [[OperationalDBs/Spanner\|Spanner]].
+- Hadoop近代化における本質的なシフト：**HDFSはストレージをクラスタノードに結合する**。データ保持のためにクラスタを生かし続ける必要がある。一方、[[Storage/Cloud-Storage\|Cloud Storage]] は完全に分離するため、クラスタは起動→実行→停止してもデータを失わない。
+- [[OperationalDBs/Bigtable\|Bigtable]] はHBaseの直接的な相当先である。HBaseはそもそもGoogle社内のBigtable論文に着想を得ており、同じワイドカラム + 行キー（row-key）モデルを共有し、大規模かつ低レイテンシ読み取りに最適化されている。
+- Cassandraの対応先はアクセスパターン次第：ワイドカラムで低レイテンシ → **Bigtable**。マルチリージョンで強整合 → [[OperationalDBs/Spanner\|Spanner]]。
 
-| Apache                          | Role                       | GCP Equivalent                                                                         | Notes                     |
+| Apache                          | 役割                        | GCP相当                                                                                | 補足                      |
 | ------------------------------- | -------------------------- | -------------------------------------------------------------------------------------- | ------------------------- |
-| Hadoop Distributed File System  | Distributed file storage   | [[Storage/Cloud-Storage\|Cloud Storage]]                                               | Replaces HDFS             |
-| Apache HBase                    | Low-latency large-scale DB | [[OperationalDBs/Bigtable\|Bigtable]]                                                  | 1:1 conceptual mapping    |
-| Apache Cassandra                | Highly available NoSQL     | [[OperationalDBs/Bigtable\|Bigtable]] / [[OperationalDBs/Spanner\|Spanner]]            | Depends on access pattern |
+| Hadoop Distributed File System  | 分散ファイルストレージ       | [[Storage/Cloud-Storage\|Cloud Storage]]                                               | HDFSの置き換え             |
+| Apache HBase                    | 低レイテンシ大規模DB         | [[OperationalDBs/Bigtable\|Bigtable]]                                                  | 概念的に1:1                |
+| Apache Cassandra                | 高可用なNoSQL               | [[OperationalDBs/Bigtable\|Bigtable]] / [[OperationalDBs/Spanner\|Spanner]]            | アクセスパターン次第        |
 
 ## Data Warehouse / SQL
 
-- Hive runs SQL on HDFS via MapReduce or Tez — slow, cluster-dependent, schema-on-read. [[Storage/BigQuery\|BigQuery]] replaces the entire stack: serverless, columnar (Dremel engine), no cluster needed.
-- Impala was built to speed up Hive with in-memory execution; BigQuery subsumes both and is faster with zero infrastructure overhead.
-- Both map to the same GCP service because BigQuery consolidates what previously required two separate tools.
+- HiveはMapReduceまたはTez経由でHDFS上にSQLを実行する。遅い、クラスタ依存、schema-on-read。[[Storage/BigQuery\|BigQuery]] はスタック全体を置き換える（サーバレス、カラムナ（Dremel engine）、クラスタ不要）。
+- Impalaはインメモリ実行でHiveを高速化するために作られた。BigQueryは両方を包含し、インフラ運用オーバーヘッドなしでより高速である。
+- 以前は2つのツールが必要だった領域をBigQueryが統合するため、どちらも同じGCPサービスに対応づけられる。
 
-| Apache        | Role                   | GCP Equivalent                 | Notes                       |
+| Apache        | 役割                    | GCP相当                       | 補足                         |
 | ------------- | ---------------------- | ------------------------------ | --------------------------- |
-| Apache Hive   | Data warehouse on HDFS | [[Storage/BigQuery\|BigQuery]] | Serverless, no cluster mgmt |
-| Apache Impala | Fast SQL queries       | [[Storage/BigQuery\|BigQuery]] | Fully managed               |
+| Apache Hive   | HDFS上のデータウェアハウス | [[Storage/BigQuery\|BigQuery]] | サーバレス、クラスタ管理なし |
+| Apache Impala | 高速なSQLクエリ         | [[Storage/BigQuery\|BigQuery]] | フルマネージド               |
 
-## Messaging / Streaming
+## メッセージング / ストリーミング
 
-- Kafka requires managing brokers, partitions, replication factors, and consumer group offsets. [[Ingestion/PubSub\|Pub/Sub]] removes all of that — serverless, globally replicated by default, scales without configuration.
-- The trade-off: Kafka offers richer semantics (log compaction, exactly-once at the broker, configurable retention); Pub/Sub favours simplicity and managed reliability.
-- Pulsar adds built-in geo-replication on top of Kafka-like messaging; Pub/Sub covers the same use cases under a simpler abstraction.
+- Kafkaはブローカー、パーティション、レプリケーション係数、コンシューマグループのオフセット管理が必要になる。[[Ingestion/PubSub\|Pub/Sub]] はそれらを不要にする（サーバレス、デフォルトでグローバル複製、設定なしでスケール）。
+- トレードオフ：Kafkaはよりリッチなセマンティクス（log compaction、ブローカーでの exactly-once、保持期間の設定など）を提供する。Pub/Subはシンプルさとマネージドの信頼性を優先する。
+- PulsarはKafka風のメッセージングに地理冗長（geo-replication）を組み込む。Pub/Subはより単純な抽象で同種のユースケースをカバーする。
 
-| Apache        | Role                  | GCP Equivalent                | Notes                  |
+| Apache        | 役割                   | GCP相当                      | 補足                    |
 | ------------- | --------------------- | ----------------------------- | ---------------------- |
-| Apache Kafka  | Event streaming       | [[Ingestion/PubSub\|Pub/Sub]] | Serverless alternative |
-| Apache Pulsar | Messaging + streaming | [[Ingestion/PubSub\|Pub/Sub]] | Similar abstraction    |
+| Apache Kafka  | イベントストリーミング   | [[Ingestion/PubSub\|Pub/Sub]] | サーバレス代替           |
+| Apache Pulsar | メッセージング + ストリーミング | [[Ingestion/PubSub\|Pub/Sub]] | 近い抽象                |
 
-## Orchestration / Workflow
+## オーケストレーション / ワークフロー
 
-- [[Orchestration/Cloud-Composer\|Cloud Composer]] is managed Apache Airflow — same DAGs, operators, hooks, and UI; GCP handles the underlying GKE cluster, database, and scheduler.
-- The mapping is almost 1:1, making Composer the natural migration target for existing Airflow pipelines with minimal code changes.
-- Oozie is tightly coupled to HDFS and MapReduce; Composer replaces it with a broader connector ecosystem and modern Python-based pipeline authoring.
+- [[Orchestration/Cloud-Composer\|Cloud Composer]] はマネージドのApache Airflowである。DAG、operator、hook、UIは同じで、基盤のGKEクラスタ、データベース、スケジューラはGCPが管理する。
+- 対応はほぼ1:1であり、既存Airflowパイプラインの移行先として、最小限のコード変更で自然に選べる。
+- OozieはHDFSとMapReduceに密結合である。Composerは、より広いコネクタエコシステムと、Pythonベースの現代的なパイプライン記述で置き換える。
 
-| Apache         | Role                     | GCP Equivalent                                      | Notes              |
+| Apache         | 役割                      | GCP相当                                            | 補足               |
 | -------------- | ------------------------ | --------------------------------------------------- | ------------------ |
-| Apache Airflow | DAG-based pipelines      | [[Orchestration/Cloud-Composer\|Cloud Composer]]    | Almost 1:1         |
-| Apache Oozie   | Hadoop job orchestration | [[Orchestration/Cloud-Composer\|Cloud Composer]]    | Modern replacement |
+| Apache Airflow | DAGベースのパイプライン     | [[Orchestration/Cloud-Composer\|Cloud Composer]]    | ほぼ1:1             |
+| Apache Oozie   | Hadoopジョブのオーケストレーション | [[Orchestration/Cloud-Composer\|Cloud Composer]]    | 現代的な置き換え     |
 
-## Data Integration / ETL
+## データ統合 / ETL
 
-- NiFi and [[Processing/Data-Fusion\|Data Fusion]] are both visual, flow-based integration tools; Data Fusion (built on CDAP) is ETL-oriented with 150+ pre-built connectors suited for production pipelines, while NiFi emphasises real-time routing and fine-grained provenance.
-- Sqoop was a batch transfer tool between HDFS and relational databases — on GCP this splits into two paths: [[Ingestion/Datastream\|Datastream]] for continuous CDC replication, [[Processing/Dataflow\|Dataflow]] for custom batch transfer pipelines.
+- NiFiと [[Processing/Data-Fusion\|Data Fusion]] はどちらも可視化されたフローベースの統合ツールである。Data Fusion（CDAP上）はETL志向で、150+ の事前構築コネクタにより本番パイプラインに向く。一方でNiFiはリアルタイムルーティングと詳細なプロビナンス（来歴）を重視する。
+- SqoopはHDFSとリレーショナルデータベース間のバッチ転送ツールだった。GCPでは2つの経路に分かれる：継続的なCDCレプリケーションは [[Ingestion/Datastream\|Datastream]]、カスタムのバッチ転送パイプラインは [[Processing/Dataflow\|Dataflow]]。
 
-| Apache       | Role                     | GCP Equivalent                                                                           | Notes         |
+| Apache       | 役割                      | GCP相当                                                                                  | 補足          |
 | ------------ | ------------------------ | ---------------------------------------------------------------------------------------- | ------------- |
-| Apache NiFi  | Data ingestion pipelines | [[Processing/Data-Fusion\|Data Fusion]]                                                  | GUI-based ETL |
-| Apache Sqoop | Data transfer            | [[Ingestion/Datastream\|Datastream]] / [[Processing/Dataflow\|Dataflow]]                 | CDC vs batch  |
+| Apache NiFi  | データ取り込みパイプライン  | [[Processing/Data-Fusion\|Data Fusion]]                                                  | GUIベースETL  |
+| Apache Sqoop | データ転送                 | [[Ingestion/Datastream\|Datastream]] / [[Processing/Dataflow\|Dataflow]]                 | CDC vs バッチ |
 
-## Machine Learning
+## 機械学習
 
-- Mahout ran ML on Hadoop MapReduce and is now largely obsolete; Vertex AI is the modern replacement — managed AutoML, custom training, feature stores, and model serving with no cluster management.
-- Spark MLlib runs distributed ML natively on Spark; on GCP, use [[Processing/Dataproc\|Dataproc]] to preserve existing MLlib code, or migrate to Vertex AI for a fully managed training and serving lifecycle.
+- MahoutはHadoop MapReduce上でMLを実行していたが、現在は概ね時代遅れである。Vertex AIが現代的な置き換えで、マネージドAutoML、カスタム学習、特徴量ストア、モデル提供をクラスタ管理なしで提供する。
+- Spark MLlibはSpark上で分散MLをネイティブに実行する。GCPでは、既存MLlibコードを維持するなら [[Processing/Dataproc\|Dataproc]]、学習から提供までをフルマネージドにするなら Vertex AI へ移行する。
 
-| Apache             | Role         | GCP Equivalent                                | Notes              |
+| Apache             | 役割          | GCP相当                                       | 補足               |
 | ------------------ | ------------ | --------------------------------------------- | ------------------ |
-| Apache Mahout      | ML on Hadoop | Vertex AI                                     | Modern ML platform |
-| Apache Spark MLlib | ML pipelines | Vertex AI / [[Processing/Dataproc\|Dataproc]] | Depends on use     |
+| Apache Mahout      | Hadoop上のML | Vertex AI                                     | 現代的なMLプラットフォーム |
+| Apache Spark MLlib | ML pipelines | Vertex AI / [[Processing/Dataproc\|Dataproc]] | 用途次第            |
 
-## Coordination / Metadata
+## 協調 / メタデータ
 
-- ZooKeeper handles distributed coordination (leader election, locks, config) that Kafka, HBase, and Hadoop depend on — on GCP these concerns are **abstracted away entirely**; Pub/Sub, Bigtable, and Dataproc manage their own coordination internally, so ZooKeeper disappears from the architecture.
-- Apache Atlas provides metadata, lineage, and governance for the Hadoop ecosystem; [[Governance/Data-Catalog\|Data Catalog]] is its GCP equivalent, with native integration into BigQuery, Cloud Storage, Pub/Sub, and Bigtable.
+- ZooKeeperは、Kafka、HBase、Hadoopが依存する分散協調（リーダー選出、ロック、設定）を担う。GCPではこれらの関心事が **完全に抽象化** される。Pub/Sub、Bigtable、Dataprocは内部で協調を管理するため、アーキテクチャからZooKeeperが消える。
+- Apache AtlasはHadoopエコシステム向けにメタデータ、リネージ、ガバナンスを提供する。GCPでは [[Governance/Data-Catalog\|Data Catalog]] が相当し、BigQuery、Cloud Storage、Pub/Sub、Bigtableへネイティブ統合されている。
 
-| Apache           | Role                 | GCP Equivalent                                    | Notes           |
+| Apache           | 役割                  | GCP相当                                           | 補足            |
 | ---------------- | -------------------- | ------------------------------------------------- | --------------- |
-| Apache ZooKeeper | Cluster coordination | Managed internally in GCP services                | Abstracted away |
-| Apache Atlas     | Metadata / catalog   | [[Governance/Data-Catalog\|Data Catalog]]         | Governance      |
+| Apache ZooKeeper | クラスタ協調           | GCPサービス内部で管理                              | 抽象化される     |
+| Apache Atlas     | メタデータ / カタログ   | [[Governance/Data-Catalog\|Data Catalog]]         | ガバナンス       |
 
-## When NOT To Use
+## 使わない場面
 
 **Pub/Sub:**
-- Strict ordering across all messages → use ordering keys (reduces parallelism) or Kafka
-- Replayable event log with custom retention → Kafka or land to [[Storage/Cloud-Storage\|Cloud Storage]]
-- Sub-millisecond latency → Pub/Sub adds ~100ms; use [[OperationalDBs/Memorystore\|Memorystore]] instead
+- すべてのメッセージで厳密な順序が必要 → ordering keys（並列性が下がる）またはKafka
+- リプレイ可能なイベントログ（保持期間を自由に設定） → Kafka、または [[Storage/Cloud-Storage\|Cloud Storage]] に着地させる
+- サブミリ秒レイテンシ → Pub/Subは~100ms程度増えるため、代わりに [[OperationalDBs/Memorystore\|Memorystore]] を使う
 
 **Dataflow:**
-- Existing Spark/Hadoop code with minimal refactor budget → [[Processing/Dataproc\|Dataproc]]
-- Native Spark APIs needed (MLlib, GraphX) → Dataproc
-- Cost-sensitive workloads on long-running, fixed clusters → Dataproc is cheaper
+- 既存Spark/Hadoopコードがあり、リファクタ予算が小さい → [[Processing/Dataproc\|Dataproc]]
+- ネイティブSpark API（MLlib、GraphX）が必要 → Dataproc
+- 長時間稼働の固定クラスタでコスト重視 → Dataprocの方が安い
 
 **Dataproc:**
-- Fully serverless requirement → Dataproc still requires cluster lifecycle management → Dataflow or [[Storage/BigQuery\|BigQuery]]
-- New pipeline design with no existing Spark code → pay the migration cost once and use Dataflow
+- フルサーバレス要件 → Dataprocはクラスタライフサイクル管理が必要 → Dataflow または [[Storage/BigQuery\|BigQuery]]
+- 既存Sparkコードなしで新規パイプライン設計 → 一度だけ移行コストを払い、Dataflowを使う
 
 **BigQuery:**
-- Low-latency OLTP reads (sub-10ms) → [[OperationalDBs/Spanner\|Spanner]] or [[OperationalDBs/Cloud-SQL\|Cloud SQL]]
-- Frequent small writes → BigQuery is optimised for bulk loads; use an OLTP DB + periodic batch load
+- 低レイテンシOLTP読み取り（sub-10ms） → [[OperationalDBs/Spanner\|Spanner]] または [[OperationalDBs/Cloud-SQL\|Cloud SQL]]
+- 小さな書き込みが高頻度 → BigQueryはバルクロード最適化のため、OLTP DB + 定期バッチロードを使う
 
 **Cloud Composer:**
-- Simple linear workflows → Cloud Workflows (lighter, no Airflow overhead)
-- Lightweight event-driven tasks → Cloud Functions / Cloud Run
+- シンプルな直列ワークフロー → Cloud Workflows（軽量でAirflowオーバーヘッドなし）
+- 軽量なイベント駆動タスク → Cloud Functions / Cloud Run
 
 **Data Fusion:**
-- Real-time streaming → [[Processing/Dataflow\|Dataflow]]
-- Trivial or one-off transforms → [[Processing/Dataprep\|Dataprep]] or BigQuery SQL
+- リアルタイムストリーミング → [[Processing/Dataflow\|Dataflow]]
+- 軽微または一回限りの変換 → [[Processing/Dataprep\|Dataprep]] または BigQuery SQL
 
-## Security And Governance Mapping
+## セキュリティとガバナンスのマッピング
 
-| Concern                          | GCP Service                                         |
+| 関心事                            | GCPサービス                                         |
 | -------------------------------- | --------------------------------------------------- |
-| Data classification / PII detection | [[Security/DLP\|DLP]]                            |
-| Metadata management / lineage    | [[Governance/Data-Catalog\|Data Catalog]]           |
-| Encryption (customer-managed)    | [[Security/Cloud-KMS\|Cloud KMS]] / CMEK            |
-| Access control                   | [[Security/IAM\|IAM]] + [[Security/VPC-Service-Controls\|VPC-SC]] |
-| Unified data governance          | [[Governance/Dataplex\|Dataplex]]                   |
-| Audit logging                    | Cloud Logging + Cloud Audit Logs                    |
+| データ分類 / PII検出                | [[Security/DLP\|DLP]]                            |
+| メタデータ管理 / リネージ            | [[Governance/Data-Catalog\|Data Catalog]]           |
+| 暗号化（顧客管理）                  | [[Security/Cloud-KMS\|Cloud KMS]] / CMEK            |
+| アクセス制御                        | [[Security/IAM\|IAM]] + [[Security/VPC-Service-Controls\|VPC-SC]] |
+| 統合データガバナンス                 | [[Governance/Dataplex\|Dataplex]]                   |
+| 監査ログ                            | Cloud Logging + Cloud Audit Logs                    |
 
-## Cost And Performance Trade-offs
+## コストと性能のトレードオフ
 
 **Dataproc vs Dataflow:**
 
-| Factor            | Dataproc                              | Dataflow                            |
+| 要素              | Dataproc                              | Dataflow                            |
 | ----------------- | ------------------------------------- | ----------------------------------- |
-| Cost model        | Cluster time (pay while cluster runs) | Per vCPU-hour actually used         |
-| Ops overhead      | Higher — cluster lifecycle to manage  | Lower — fully serverless            |
-| Best for          | Long-running clusters, Spark-native APIs | Ephemeral jobs, unpredictable load |
-| Choose when       | Reusing existing cluster / Spark code | New pipeline, auto-scaling needed   |
+| コストモデル       | クラスタ時間（稼働中は課金）            | 実際に使った vCPU-hour 課金          |
+| 運用オーバーヘッド | 高い（クラスタライフサイクル管理）       | 低い（フルサーバレス）               |
+| 最適              | 長時間稼働クラスタ、SparkネイティブAPI   | 短命ジョブ、予測不能な負荷            |
+| 選ぶ場面          | 既存クラスタ/Sparkコードの再利用         | 新規パイプライン、オートスケールが必要 |
 
 **BigQuery pricing:**
-- **On-demand**: pay per TB scanned — good for ad-hoc, unpredictable workloads
-- **Flat-rate / capacity**: fixed slot reservations — good for predictable, high-volume production workloads
-- Partition filters reduce scan cost; clustering reduces bytes scanned further without extra cost
+- **On-demand**: スキャンTBあたり課金 — アドホックで予測不能なワークロードに向く
+- **Flat-rate / capacity**: 固定スロット予約 — 予測可能で高ボリュームの本番ワークロードに向く
+- パーティションフィルタはスキャンコストを下げ、クラスタリングは追加コストなしでスキャンバイトをさらに削減する
 
-## Decision Rules
+## 判断ルール
 
-**Minimal change vs redesign:**
+**最小変更 vs 再設計:**
 
-| Requirement                        | Answer                                              |
+| 要件                                | 回答                                                |
 | ---------------------------------- | --------------------------------------------------- |
 | Preserve existing Spark/Hadoop code | [[Processing/Dataproc\|Dataproc]]                  |
 | Rewrite for serverless architecture | [[Processing/Dataflow\|Dataflow]]                  |
 | Existing Airflow DAGs              | [[Orchestration/Cloud-Composer\|Cloud Composer]]    |
 | Simple linear workflow (no DAG)    | Cloud Workflows                                     |
 
-**Ingestion patterns:**
+**取り込みパターン:**
 
-| Pattern                         | GCP Service                                                          |
+| パターン                         | GCPサービス                                                           |
 | ------------------------------- | -------------------------------------------------------------------- |
-| Real-time DB sync (CDC)         | [[Ingestion/Datastream\|Datastream]]                                 |
-| Batch file ingestion            | [[Processing/Dataflow\|Dataflow]] / Storage Transfer Service         |
-| Event streaming from apps       | [[Ingestion/PubSub\|Pub/Sub]]                                        |
-| One-time bulk migration         | Storage Transfer Service / `gsutil`                                  |
-| Hot data (frequent low-latency) | [[OperationalDBs/Bigtable\|Bigtable]] / [[OperationalDBs/Memorystore\|Memorystore]] |
-| Cold data (archival)            | [[Storage/Cloud-Storage\|Cloud Storage]] (Coldline / Archive)        |
+| リアルタイムDB同期（CDC）         | [[Ingestion/Datastream\|Datastream]]                                 |
+| バッチのファイル取り込み          | [[Processing/Dataflow\|Dataflow]] / Storage Transfer Service         |
+| アプリからのイベントストリーミング | [[Ingestion/PubSub\|Pub/Sub]]                                        |
+| 一度きりの大量移行                | Storage Transfer Service / `gsutil`                                  |
+| ホットデータ（高頻度・低レイテンシ） | [[OperationalDBs/Bigtable\|Bigtable]] / [[OperationalDBs/Memorystore\|Memorystore]] |
+| コールドデータ（アーカイブ）        | [[Storage/Cloud-Storage\|Cloud Storage]]（Coldline / Archive）        |
 
-## Key Patterns
+## 主要パターン
 
-### Lift-and-Shift Hadoop
+### Hadoopのリフト＆シフト
 ```
 Hadoop  → Dataproc
 HDFS    → Cloud Storage
 Airflow → Composer
 ```
 
-### Modernize Architecture
+### アーキテクチャの現代化
 ```
 Kafka       → Pub/Sub
 Spark/Flink → Dataflow
 Hive        → BigQuery
 ```
 
-### GUI / Low-Code Pipelines
+### GUI / ローコードのパイプライン
 ```
 NiFi  → Data Fusion
 Sqoop → Datastream
 ```
 
-## Quick Decision Heuristics
+## 意思決定ルール
 
-| If you see...        | GCP Service                                          |
+| 見かけたら…          | GCPサービス                                           |
 | -------------------- | ---------------------------------------------------- |
-| Hadoop jobs          | [[Processing/Dataproc\|Dataproc]]                    |
-| Serverless analytics | [[Storage/BigQuery\|BigQuery]]                       |
-| Streaming pipeline   | [[Processing/Dataflow\|Dataflow]]                    |
-| Event ingestion      | [[Ingestion/PubSub\|Pub/Sub]]                        |
-| Airflow DAGs         | [[Orchestration/Cloud-Composer\|Cloud Composer]]     |
-| GUI ETL              | [[Processing/Data-Fusion\|Data Fusion]]              |
-| CDC replication      | [[Ingestion/Datastream\|Datastream]]                 |
+| Hadoopジョブ           | [[Processing/Dataproc\|Dataproc]]                    |
+| サーバレス分析          | [[Storage/BigQuery\|BigQuery]]                       |
+| ストリーミングパイプライン | [[Processing/Dataflow\|Dataflow]]                    |
+| イベント取り込み         | [[Ingestion/PubSub\|Pub/Sub]]                        |
+| Airflow DAG            | [[Orchestration/Cloud-Composer\|Cloud Composer]]     |
+| GUI ETL               | [[Processing/Data-Fusion\|Data Fusion]]              |
+| CDCレプリケーション      | [[Ingestion/Datastream\|Datastream]]                 |

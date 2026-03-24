@@ -1,32 +1,32 @@
 # Cloud Logging
 
-Cloud Logging collects, stores, and analyzes log data from GCP services and your applications. It powers searchable logs, log-based metrics, and routing to sinks for long-term retention or analytics.
+Cloud Logging は、GCPサービスとアプリケーションのログデータを収集・保存・分析する。検索可能なログ、ログベースメトリクス、長期保持や分析のためのsinkへのルーティングを提供する。
 
-## Use Cases
-- Debug failed pipelines and job errors.
-- Trace data freshness issues via task logs.
-- Build log-based metrics for alerting.
-- Route logs to storage or analysis systems for compliance.
+## ユースケース
+- 失敗したパイプラインやジョブエラーをデバッグする。
+- タスクログからデータ鮮度問題を追跡する。
+- アラート用にログベースメトリクスを作る。
+- コンプライアンスのため、ログをストレージ/分析システムへルーティングする。
 
-## Mental Model
-- Logs are ingested into Log Explorer and stored per project.
-- Logs can be routed to sinks (BigQuery, Cloud Storage, Pub/Sub) for retention or analysis.
-- Log-based metrics turn log patterns into time series for alerting.
-- Log severity and labels help filter noisy streams.
+## メンタルモデル
+- ログはLog Explorerへ取り込まれ、プロジェクト単位で保存される。
+- ログは保持/分析のためにsink（BigQuery/Cloud Storage/Pub/Sub）へルーティングできる。
+- ログベースメトリクスは、ログパターンを時系列へ変換し、アラートに使える。
+- severityとlabelsでノイジーなストリームをフィルタできる。
 
-## Core Concepts
-- Log entry: a single event with timestamp, severity, and payload.
-- Log bucket: storage for logs within a project or org.
-- Log sink: export route to another destination.
-- Log-based metric: metric generated from log filters.
+## コア概念
+- Log entry：timestamp/severity/payloadを持つ単一イベント。
+- Log bucket：プロジェクト/組織内のログ保存先。
+- Log sink：他の宛先へのエクスポート経路。
+- Log-based metric：ログフィルタから生成されるメトリクス。
 
-## Common Patterns
-- Export Dataflow job logs to BigQuery for analysis.
-- Create alerts on error counts from critical DAGs.
-- Use structured logging for pipeline steps and row counts.
-- Centralize logs across projects with aggregated sinks.
+## よくあるパターン
+- DataflowジョブログをBigQueryへエクスポートして分析する。
+- 重要DAGのエラー件数にアラートを作る。
+- パイプラインステップと行数に構造化ログを使う。
+- aggregated sinksでプロジェクト横断のログを集約する。
 
-## Integrations
+## 連携
 - [[Cloud-Monitoring|Cloud-Monitoring]]: alert on log-based metrics.
 - [[Processing/Dataflow|Dataflow]]: job and worker logs.
 - [[Processing/Dataproc|Dataproc]]: cluster and job logs.
@@ -34,24 +34,24 @@ Cloud Logging collects, stores, and analyzes log data from GCP services and your
 - [[Cloud-Storage|Cloud Storage]]: log archive destination.
 - [[Ingestion/PubSub|Pub/Sub]]: stream logs to downstream consumers.
 
-## Security And Access Control
-- Use least-privilege [[Security/IAM|IAM]] roles for log access.
-- Limit access to sensitive logs containing PII or secrets.
-- Use log sinks to separate retention by sensitivity.
+## セキュリティとアクセス制御
+- ログアクセスには最小権限の [[Security/IAM|IAM]] ロールを使う。
+- PII/シークレットを含む機微ログへのアクセスを制限する。
+- 機微度ごとに保持先を分けるため、log sinksを使う。
 
-## Operations And Reliability
-- Standardize log formats for pipeline steps.
-- Retain logs long enough for audits and postmortems.
-- Use labels to track environment and pipeline version.
+## 運用と信頼性
+- パイプラインステップのログ形式を標準化する。
+- 監査とポストモーテムに十分な期間ログを保持する。
+- labelsで環境とパイプラインバージョンを追跡する。
 
-## Common Pitfalls
-- Logging sensitive data without masking.
-- Relying on logs for metrics instead of emitting explicit metrics.
-- High log volume causing cost surprises without sinks or filters.
+## よくある落とし穴
+- マスキングせずに機微データをログ出力する。
+- 明示的メトリクスを出さず、ログだけでメトリクス代用する。
+- sinkやフィルタなしにログ量が増え、コストが想定外になる。
 
-## Quick Checklist
-- Define log retention by environment and compliance needs.
-- Create sinks for long-term storage or analysis.
-- Add log-based metrics for critical error patterns.
-- Document log search filters for on-call use.
-- Review log volume and costs quarterly.
+## クイックチェックリスト
+- 環境とコンプライアンス要件でログ保持を定義する。
+- 長期保存/分析のためのsinkを作成する。
+- 重要エラーパターンのログベースメトリクスを追加する。
+- オンコール向けにログ検索フィルタを文書化する。
+- 四半期ごとにログ量とコストをレビューする。

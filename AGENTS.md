@@ -69,7 +69,6 @@ If an answer would not eliminate at least two exam distractors, refine it.
 
 ## Behavioral Constraints
 - Be conservative when editing notes.
-- Propose changes before applying them.
 - Avoid multi-file edits unless explicitly requested.
 
 ## Tone

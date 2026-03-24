@@ -1,134 +1,134 @@
 # Pub/Sub
 
-Pub/Sub is GCP's managed messaging service for event-driven systems. It delivers messages from publishers to subscribers with durable storage, horizontal scaling, and simple fan-out.
+Pub/Sub は、イベント駆動システム向けのGCPマネージドメッセージングサービスである。耐久性のある保存、水平スケール、シンプルなファンアウトで、パブリッシャーからサブスクライバーへメッセージを配信する。
 
-## Use Cases
-- Ingest real-time events for streaming pipelines (often into [[Processing/Dataflow|Dataflow]] and [[Storage/BigQuery|BigQuery]]).
-- Decouple producers and consumers to avoid tight dependencies.
-- Fan out the same event stream to multiple consumers (analytics, monitoring, ML).
-- Buffer bursts of events without dropping data.
+## ユースケース
+- ストリーミングパイプライン（多くは [[Processing/Dataflow|Dataflow]] と [[Storage/BigQuery|BigQuery]]）向けにリアルタイムイベントを取り込む。
+- プロデューサとコンシューマを分離して、密結合を避ける。
+- 同一のイベントストリームを複数コンシューマ（分析、監視、ML）へファンアウトする。
+- データを落とさずにイベントのバーストをバッファする。
 
-## Mental Model
-- Topics are append-only event streams; subscriptions are independent views.
-- Pull subscriptions: subscribers poll and ack messages.
-- Push subscriptions: Pub/Sub delivers to an HTTPS endpoint.
-- Delivery is **at-least-once**, so consumers must be idempotent.
-- Message retention and ack state are per subscription (not per topic); a message is deleted only after that subscription ACKs.
+## メンタルモデル
+- トピックは追記専用のイベントストリームで、サブスクリプションは独立したビューである。
+- Pull サブスクリプション：サブスクライバーがポーリングしてメッセージを受け取り、ACKする。
+- Push サブスクリプション：Pub/Sub がHTTPSエンドポイントへ配信する。
+- 配信は **at-least-once** のため、consumer は冪等である必要がある。
+- メッセージ保持とACK状態はサブスクリプション単位（トピック単位ではない）。メッセージは、そのサブスクリプションがACKした後にのみ削除される。
 
-## Core Concepts
+## コア概念
 
-| Concept      | Description                                               |
+| 概念         | 説明                                                      |
 | ------------ | --------------------------------------------------------- |
-| Topic        | Named stream of messages                                  |
-| Subscription | Cursor + delivery configuration for a topic               |
-| Message      | Payload + attributes (key/value metadata)                 |
-| Ack          | Confirms successful processing; unacked messages retried  |
-| Retention    | How long unacked and acked messages are kept              |
+| トピック        | 名前付きのメッセージストリーム                             |
+| サブスクリプション | トピックに対するカーソル + 配信設定                         |
+| メッセージ      | ペイロード + 属性（key/valueメタデータ）                   |
+| ACK          | 処理成功の確認（未ACKはリトライされる）                    |
+| 保持期間        | 未ACK/ACK済みメッセージを保持する期間                      |
 
-## Delivery And Ordering
-- At-least-once delivery: each published message is delivered one or more times; duplicates can happen.
-- Duplicates occur when a subscriber receives a message but fails to ack before the deadline or hits a transient error, so Pub/Sub redelivers.
-- Pub/Sub is not at-most-once; it prioritizes durability over uniqueness, so loss is avoided at the cost of duplicates.
-- Message ordering is not guaranteed unless ordering keys are used.
-- Ordering keys preserve order per key, but can reduce parallelism.
+## 配信と順序
+- at-least-once 配信：公開された各メッセージは1回以上配信され、重複しうる。
+- 重複は、サブスクライバーが受信しても期限内にACKできない/一時エラーになると発生し、Pub/Subが再配信する。
+- Pub/Subは at-most-once ではない。ユニーク性より耐久性を優先し、重複を許容して損失を避ける。
+- ordering keys を使わない限り、メッセージ順序は保証されない。
+- ordering keys はキー単位の順序を保つが、並列性を下げうる。
 
-## Pull vs Push
+## Pull と Push
 
 **Pull:**
-- Best for controlled scaling and backpressure.
-- Subscribers manage their own parallelism and acking.
+- スケールとバックプレッシャを制御しやすい。
+- サブスクライバーが並列性とACKを自分で管理する。
 
 **Push:**
-- Pub/Sub calls your endpoint; simpler for lightweight consumers.
-- Requires stable HTTPS endpoint and careful retry handling.
+- Pub/Subがエンドポイントを呼び出すため、軽量なconsumerでは簡単。
+- 安定したHTTPSエンドポイントと、慎重なリトライ処理が必要。
 
-## Exactly-Once And Idempotency
-Pub/Sub supports exactly-once delivery for pull subscriptions with compatible clients.
-- Still design consumers to be idempotent (safe to reprocess).
-- Common pattern: write with upsert keys or dedupe in [[Storage/BigQuery|BigQuery]].
+## Exactly-once と冪等性
+Pub/Subは、対応クライアントの Pull サブスクリプションで exactly-once 配信をサポートする。
+- それでもconsumerは冪等に設計する（再処理しても安全）。
+- よくあるパターン：upsertキーで書き込む、または [[Storage/BigQuery|BigQuery]] で重複排除する。
 
-## Dead Letter Topics (DLQ)
-Use a dead letter topic to isolate poison messages.
-- Configure max delivery attempts on the subscription.
-- Route failures to a DLQ for later inspection and reprocessing.
-- Use a **separate topic** for the DLQ — routing back to the same topic causes infinite retry loops.
+## デッドレタートピック（DLQ）
+ポイズンメッセージを隔離するためにデッドレタートピックを使う。
+- サブスクリプションに最大配信試行回数を設定する。
+- 失敗をDLQへルーティングし、後で調査/再処理できるようにする。
+- DLQは **別のtopic** にする（同じtopicへ戻すと無限リトライループになる）。
 
 **Pub/Sub DLQ vs Dataflow side outputs:**
-- **Pub/Sub DLQ**: handles subscriber/ack failures — message exceeds max delivery attempts → routed to the DLQ topic.
-- **Dataflow side outputs**: handles transform errors — records that fail processing logic are routed to a dead-letter `PCollection`, not the Pub/Sub DLQ. These are separate mechanisms, not interchangeable.
+- **Pub/Sub DLQ**：サブスクライバー/ACK の失敗を扱う（最大配信試行回数を超えたメッセージ → DLQトピックへ）。
+- **Dataflow side outputs**：transformエラーを扱う（処理ロジックに失敗したレコードは、Pub/Sub DLQではなくデッドレター `PCollection` へ）。別機構であり、互換ではない。
 
-## Schema And Validation
-Pub/Sub can enforce schemas at publish time — messages that violate the schema are **rejected before entering the topic**.
-- This is producer-side validation, not a consumer-side transformation.
-- Define a schema, attach it to the topic, and require validation on publish.
-- Assign schemas at the topic level so every subscription is automatically protected.
+## スキーマと検証
+Pub/Subはpublish時にスキーマを強制でき、違反するメッセージは **topicに入る前に拒否** される。
+- これはproducer側の検証であり、consumer側の変換ではない。
+- スキーマを定義し、topicに関連付け、publish時の検証を必須にする。
+- スキーマはtopicレベルに割り当て、すべてのsubscriptionを自動的に保護する。
 
-**Supported Schema Types:**
+**対応スキーマ種別:**
 
-| Type         | Best When                                                          |
+| 種別          | 最適な場面                                                           |
 | ------------ | ------------------------------------------------------------------ |
-| **Protobuf** | Strongly typed services, gRPC systems, minimal wire size           |
-| **Avro**     | Analytics pipelines, Dataflow/BigQuery consumers, schema evolution |
+| **Protobuf** | 強い型付けサービス、gRPCシステム、最小のワイヤサイズ                 |
+| **Avro**     | 分析パイプライン、Dataflow/BigQuery consumer、スキーマ進化           |
 
-**Unsupported Formats (Exam Traps):**
+**非対応形式（試験の罠）:**
 
-| Format  | Why It Fails                                                     |
+| 形式    | なぜダメか                                                       |
 | ------- | ---------------------------------------------------------------- |
-| Thrift  | Similar to Protobuf conceptually, but not implemented in Pub/Sub |
-| CSV     | No type system — cannot enforce field-level validation           |
-| Parquet | Storage/analytics format, not a messaging schema standard        |
+| Thrift  | 概念的にはProtobufに近いが、Pub/Subには実装されていない            |
+| CSV     | 型システムがなく、フィールド単位の検証を強制できない               |
+| Parquet | ストレージ/分析向け形式であり、メッセージングのスキーマ標準ではない |
 
-## Performance And Throughput
-- Scale by increasing subscriber concurrency and ack throughput.
-- Keep messages small and avoid huge payloads; store large blobs in [[Cloud-Storage|Cloud Storage]] and send references.
-- For high-volume streams, use batching in publishers to improve efficiency.
+## 性能とスループット
+- サブスクライバーの並列性とACKスループットを上げてスケールする。
+- メッセージは小さく保ち、巨大ペイロードを避ける。大きなblobは [[Cloud-Storage|Cloud Storage]] に置き、参照を送る。
+- 高ボリュームでは、パブリッシャー側でバッチ化して効率を上げる。
 
-## Security And Access Control
-- Use [[Security/IAM|IAM]] roles: publisher, subscriber, and viewer.
-- Prefer service accounts; avoid user credentials in long-running services.
-- Use CMEK when required for customer-managed encryption keys (via [[Cloud-KMS|Cloud KMS]]).
-- Use VPC Service Controls perimeters to prevent cross-project data exfiltration.
+## セキュリティとアクセス制御
+- [[Security/IAM|IAM]] ロール（publisher/subscriber/viewer）を使う。
+- 長時間稼働サービスではサービスアカウントを優先し、ユーザー認証情報は避ける。
+- 顧客管理暗号鍵が必要な場合は、[[Cloud-KMS|Cloud KMS]] 経由でCMEKを使う。
+- VPC Service Controls の境界で、プロジェクト間のデータ持ち出し（exfiltration）を防ぐ。
 
-## Monitoring And Ops
-- Key metrics: backlog size, oldest unacked message age, ack rate.
-- Alert on growing backlog or increasing message age.
-- Use retry policies and DLQs to avoid stuck pipelines.
+## 監視と運用
+- 主要指標：バックログ量、最古の未ACKメッセージ経過時間、ACK率。
+- バックログ増加やメッセージ経過時間の増加にアラートを設定する。
+- リトライポリシーとDLQで、パイプラインの詰まりを防ぐ。
 
 **Subscription lag signals:**
 - `subscription/num_undelivered_messages` — backlog (undelivered + unacked messages).
 - `subscription/oldest_unacknowledged_message_age` — max wait time; rising values mean consumers are falling behind.
 
 **Outage recovery:**
-- Prefer **Pub/Sub Seek** (replay within retention window) over restarting Dataflow or reloading from Cloud Storage.
-- Rule: seek window ≥ RPO + detection/restore lag; expect duplicates → keep sinks idempotent.
+- Dataflowの再起動やCloud Storageからの再ロードより、**Pub/Sub Seek**（保持期間内のリプレイ）を優先する。
+- ルール：seek可能期間 ≥ RPO + 検知/復旧の遅れ。重複は起きる前提で、sinkを冪等にする。
 
 **Bad ACK recovery:**
-- Create a **subscription snapshot** before risky changes; **Seek** back if needed.
-- ACKed messages are not retained — expect duplicates; keep sinks idempotent.
+- リスクのある変更の前に **サブスクリプションスナップショット** を作る。必要なら **Seek** で戻す。
+- ACK済みメッセージは保持されない。重複は起きる前提で、sinkを冪等にする。
 
-## Common Pitfalls
-- Forgetting idempotency on consumers — at-least-once delivery means duplicates *will* happen under retries and failures; use upsert keys, deduplication in [[Storage/BigQuery|BigQuery]], or exactly-once pull subscriptions.
-- Missing DLQ configuration — without a DLQ, repeatedly failing messages consume delivery attempts until dropped silently; configure max delivery attempts and route failures to a dedicated DLQ topic.
-- Routing the DLQ back to the same topic — creates an infinite retry loop as failed messages are re-enqueued and fail again; always use a **separate** DLQ topic.
-- ACK deadline shorter than consumer processing time — Pub/Sub redelivers if no ACK arrives before the deadline, causing duplicate processing; extend the deadline or call `modifyAckDeadline` during long operations.
-- Misaligned regions with downstream services — cross-region delivery adds latency and egress cost; co-locate topics and subscriptions with Dataflow, BigQuery, and other processing resources.
-- Overusing ordering keys — all messages for a key are routed to a single subscriber, reducing throughput; only enable ordering when strict per-key sequence is genuinely required.
-- Sending large payloads directly — Pub/Sub has a 10 MB per-message limit; store large objects in [[Cloud-Storage|Cloud Storage]] and publish a reference URI in the message instead.
+## よくある落とし穴
+- consumer の冪等性を忘れる — at-least-once配信では、リトライ/障害で重複が *必ず* 起きうる。upsertキー、[[Storage/BigQuery|BigQuery]] の重複排除、または exactly-once の Pull サブスクリプションを使う。
+- DLQ設定がない — DLQがないと、失敗メッセージが配信試行回数を消費し続け、最終的に黙って落ちる。最大配信試行回数を設定し、専用DLQ topicへルーティングする。
+- DLQを同じtopicへ戻す — 失敗メッセージが再投入され続け、無限リトライループになる。DLQは必ず **別** のtopicにする。
+- ACK期限がconsumer処理時間より短い — 期限内にACKが来ないと再配信され、重複処理になる。期限を延長するか、長時間処理では `modifyAckDeadline` を使う。
+- 下流サービスとリージョンがズレている — クロスリージョン配信はレイテンシとエグレスコストを増やす。トピック/サブスクリプションを Dataflow、BigQueryなどと同じリージョンに揃える。
+- ordering keys の使い過ぎ — キー単位で1つのsubscriberへ集約され、スループットが落ちる。厳密なキー単位順序が本当に必要な場合のみ有効化する。
+- 大きなペイロードを直接送る — Pub/Subは1メッセージ10MB制限がある。大きなオブジェクトは [[Cloud-Storage|Cloud Storage]] に置き、参照URIをメッセージで送る。
 
-## Integrations
-- [[Processing/Dataflow|Dataflow]]: primary streaming processing engine for Pub/Sub.
-- [[Storage/BigQuery|BigQuery]]: common sink for event analytics (streaming or batch).
-- [[Cloud-Storage|Cloud Storage]]: store large payloads and reference them in messages.
-- Cloud Functions / Cloud Run: event-driven compute consumers. Deploy a function with a Pub/Sub trigger using:
+## 連携
+- [[Processing/Dataflow|Dataflow]]：Pub/Subの主要なストリーミング処理エンジン。
+- [[Storage/BigQuery|BigQuery]]：イベント分析（ストリーミング/バッチ）の一般的なsink。
+- [[Cloud-Storage|Cloud Storage]]：大きなペイロードを保存し、メッセージには参照を載せる。
+- Cloud Functions / Cloud Run：イベント駆動コンシューマ。Pub/Subトリガーで関数をデプロイする例：
   ```bash
   gcloud functions deploy FUNCTION_NAME \
     --runtime=RUNTIME \
     --trigger-topic=TOPIC_NAME
   ```
 
-## Quick Checklist
-- Define topic purpose, schema, and retention policy.
-- Choose pull vs push subscriptions based on consumer control needs.
-- Decide on ordering keys and accept the throughput tradeoff.
-- Configure DLQ and max delivery attempts.
-- Ensure consumers are idempotent and observable.
+## クイックチェックリスト
+- トピックの目的、スキーマ、保持ポリシーを定義する。
+- consumer の制御要件に基づいて、pull と push のsubscriptionを選ぶ。
+- ordering keys を使うかを決め、スループットのトレードオフを受け入れる。
+- DLQと最大配信試行回数を設定する。
+- consumer が冪等で、かつ可観測であることを確認する。

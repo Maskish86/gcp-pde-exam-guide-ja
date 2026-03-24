@@ -1,58 +1,58 @@
 # Dataprep
 
-Cloud Dataprep (powered by Trifacta) is a managed, visual data preparation tool for profiling, cleaning, and transforming data in [[Cloud-Storage|Cloud Storage]] or [[Storage/BigQuery|BigQuery]]. It generates [[Processing/Dataflow|Dataflow]] jobs under the hood for execution — there is no separate Dataprep execution engine.
+Cloud Dataprep（Trifacta提供）は、[[Cloud-Storage|Cloud Storage]] または [[Storage/BigQuery|BigQuery]] のデータを対象に、プロファイリング、クリーニング、変換を行うマネージドなビジュアル データ準備ツールである。実行は内部的に [[Processing/Dataflow|Dataflow]] ジョブを生成して行い、Dataprep専用の実行エンジンは存在しない。
 
-## Mental Model
-- Dataprep is a **UI on top of Dataflow** — it abstracts pipeline authoring into a visual recipe editor.
-- It targets **analysts and data stewards**, not engineers.
-- Execution is **always batch** — Dataflow for GCS data, BigQuery for BQ data.
-- Not a replacement for Dataflow or Data Fusion in production pipelines.
+## メンタルモデル
+- Dataprep は **Dataflow上のUI** — パイプライン作成を、ビジュアルなrecipeエディタに抽象化する。
+- エンジニアではなく、**アナリスト/データスチュワード** 向け。
+- 実行は **常にバッチ** — GCSデータはDataflow、BigQueryデータはBigQueryで実行する。
+- 本番パイプラインにおけるDataflowやData Fusionの代替ではない。
 
-## Exam Domain
-- Designing data processing systems
-- Building and operationalizing data processing systems
-- Ensuring solution quality
+## 試験ドメイン
+- データ処理システムの設計
+- データ処理システムの構築と運用化
+- ソリューション品質の確保
 
-## Core Concepts
+## コア概念
 
-| Concept     | Description                                               |
-| ----------- | --------------------------------------------------------- |
-| Flow        | Dataprep project: connects datasets, recipes, and outputs |
-| Recipe      | Ordered sequence of cleaning/transformation steps         |
-| Transformer | Visual editor for building recipes                        |
-| Dataset     | Source data from GCS or BigQuery                          |
-| Job         | Execution of a flow (runs as a Dataflow job)              |
+| 概念        | 説明                                                    |
+| ----------- | ------------------------------------------------------- |
+| Flow        | Dataprepプロジェクト（datasets/recipes/outputs を接続） |
+| Recipe      | クリーニング/変換ステップの順序付きシーケンス           |
+| Transformer | recipeを作るためのビジュアルエディタ                    |
+| Dataset     | GCSまたはBigQueryのソースデータ                         |
+| Job         | flowの実行（Dataflowジョブとして動く）                  |
 
-## Constraints
-- Latency: interactive/adhoc prep; not low-latency streaming
-- Scale: moderate; can offload execution to [[Processing/Dataflow|Dataflow]] or [[Storage/BigQuery|BigQuery]]
-- Consistency: batch, deterministic transformations
-- Cost: pay for the underlying execution engine; avoid for trivial SQL-only transforms
-- Operational overhead: low (managed visual tool)
-- Batch vs streaming: **batch only**
+## 制約
+- レイテンシ: 対話的/アドホック準備向け。低レイテンシのストリーミングではない。
+- スケール: 中程度（実行は [[Processing/Dataflow|Dataflow]] または [[Storage/BigQuery|BigQuery]] にオフロード可能）。
+- 一貫性: バッチで決定的な変換。
+- コスト: 下位の実行エンジン課金が中心。SQLだけの些細な変換には不向き。
+- 運用負荷: 低（マネージドなビジュアルツール）。
+- バッチ vs ストリーミング: **バッチのみ**
 
-| Service          | Best When                                                    | Fails When                                                   |
-| ---------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| **Dataprep**     | Visual cleaning, analyst-driven prep, minimal coding         | Streaming pipelines, complex multi-stage engineering workflows |
-| **Dataflow**     | Large-scale batch/streaming with custom transforms           | Business users need a GUI; quick one-off cleaning            |
-| **Data Fusion**  | Reusable ETL with many connectors and governance             | Ad-hoc prep; overhead too high for small jobs                |
-| **BigQuery SQL** | SQL-only transforms on BigQuery data                         | File-based prep or non-SQL cleaning required                 |
+| サービス           | 適する条件                                                   | 失敗する条件                                                   |
+| ------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| **Dataprep**       | ビジュアル クリーニング、アナリスト主導の準備、最小限のコーディング | ストリーミングパイプライン、複雑な多段エンジニアリングワークフロー |
+| **Dataflow**       | カスタム変換での大規模バッチ/ストリーミング                  | GUIが必須、素早いワンオフ クリーニング                         |
+| **Data Fusion**    | コネクタが豊富でガバナンスされた再利用可能ETL                | アドホック準備、小規模ジョブにはオーバーヘッドが大きい        |
+| **BigQuery SQL**   | BigQueryデータに対するSQLのみの変換                           | ファイル中心の準備、非SQLクリーニングが必要                   |
 
-## Correct Choice
-- Pick **Dataprep** when the constraint is **low engineering effort + visual data prep** on files or BigQuery tables and batch execution is acceptable.
-- Pick **Dataflow** when custom logic or streaming is required.
-- Pick **Data Fusion** when you need production ETL pipelines with many connectors and governance.
-- Pick **BigQuery SQL** when transformations are pure SQL in BigQuery.
+## 正しい選択
+- 制約が「ファイル/BigQueryテーブルに対する **低いエンジニアリング負荷 + ビジュアル準備**」で、バッチ実行が許容されるなら **Dataprep**。
+- カスタムロジックやストリーミングが必須なら **Dataflow**。
+- 本番ETLでコネクタの幅とガバナンスが必要なら **Data Fusion**。
+- BigQueryでSQLだけの変換なら **BigQuery SQL**。
 
-## Why Not the Others
-- **Dataflow:** overkill for analyst-driven prep; higher dev/ops effort.
-- **Data Fusion:** heavier ops/cost for simple or one-off cleaning.
-- **BigQuery SQL:** cannot handle non-SQL prep or file-centric workflows well.
+## 他を選ばない理由
+- **Dataflow:** アナリスト主導の準備には過剰で、開発/運用負荷が高い。
+- **Data Fusion:** 単純/ワンオフのクリーニングには運用/コストが重い。
+- **BigQuery SQL:** 非SQLの準備やファイル中心ワークフローに弱い。
 
-## Common Exam Traps
-- "Visual, self-service data cleaning by analysts" → **Dataprep**, not Dataflow or Data Fusion.
-- "Dataprep execution engine" doesn't exist → it **generates and runs Dataflow jobs**; cost = Dataflow worker hours + Dataprep service fee.
-- Choosing Dataprep for **streaming** → it is **batch only**; use Dataflow or Pub/Sub for real-time pipelines.
-- Choosing Dataprep for **complex, multi-stage production ETL** → prefer **Data Fusion** (connectors + governance) or **Dataflow** (custom transforms).
-- Choosing Dataprep when the source is **not GCS or BigQuery** → Dataprep only reads from GCS and BigQuery; other sources require Dataflow or Data Fusion.
-- "Minimize cost for SQL-only BigQuery transforms" → **BigQuery SQL**, not Dataprep — using Dataprep adds unnecessary Dataflow worker overhead for pure SQL work.
+## よくある試験の罠
+- 「アナリストによるビジュアルなセルフサービス クリーニング」→ Dataflow/Data Fusionではなく **Dataprep**。
+- 「Dataprepの実行エンジン」は存在しない → **Dataflowジョブを生成して実行する**。コスト = Dataflowワーカー時間 + Dataprepサービス料金。
+- **ストリーミング** にDataprepを選ぶ → **バッチのみ**。リアルタイムはDataflowまたはPub/Sub。
+- **複雑で多段な本番ETL** にDataprepを選ぶ → **Data Fusion**（コネクタ + ガバナンス）または **Dataflow**（カスタム変換）。
+- ソースが **GCSまたはBigQuery以外** なのにDataprepを選ぶ → DataprepはGCS/BigQueryしか読めない。他ソースはDataflowまたはData Fusion。
+- 「SQLだけのBigQuery変換でコスト最小」→ Dataprepではなく **BigQuery SQL**。Dataprepは純SQLでも不要なDataflowワーカーのオーバーヘッドを足しやすい。

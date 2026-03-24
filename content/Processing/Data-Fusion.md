@@ -1,67 +1,67 @@
 # Data Fusion
 
-Cloud Data Fusion is GCP's managed, visual ETL/ELT pipeline service built on open-source CDAP. It provides a drag-and-drop Studio with 150+ pre-built connectors, runs pipelines on [[Processing/Dataproc|Dataproc]] (Spark) under the hood, and is designed for **production, connector-rich, governed ETL** — not ad-hoc prep or custom streaming code.
+Cloud Data Fusion は、オープンソースのCDAPを基盤とする、GCPのマネージドなビジュアル ETL/ELT パイプラインサービスである。150+ の事前構築コネクタを備えたドラッグ&ドロップのStudioを提供し、内部的には [[Processing/Dataproc|Dataproc]]（Spark）上でパイプラインを実行する。用途は **本番、コネクタが豊富、ガバナンスされたETL** であり、アドホックなデータ準備やカスタムのストリーミングコード向けではない。
 
-## Mental Model
-- Data Fusion = **visual pipeline builder on top of Dataproc (Spark)** — you design; Spark executes.
-- Targets **data engineers and integration teams**, not ad-hoc analysts.
-- Primary strength is **connector breadth** (databases, SaaS, files, messaging) and **pipeline reuse**.
-- Higher ops/cost than Dataprep; lower engineering effort than Dataflow.
-- Not the first choice for sub-second streaming or simple SQL-only transforms.
+## メンタルモデル
+- Data Fusion = **Dataproc（Spark）上のビジュアル パイプラインビルダー** — 設計は人、実行はSpark。
+- アドホックな分析者ではなく、**データエンジニア/インテグレーションチーム** 向け。
+- 強みは **コネクタの幅**（DB、SaaS、ファイル、メッセージング）と **パイプライン再利用**。
+- Dataprepより運用/コストは重いが、Dataflowよりエンジニアリング負荷は低い。
+- サブ秒ストリーミングや、SQLだけの単純変換の第一候補ではない。
 
-## Exam Domain
-- Designing data processing systems
-- Building and operationalizing data processing systems
-- Ensuring solution quality
+## 試験ドメイン
+- データ処理システムの設計
+- データ処理システムの構築と運用化
+- ソリューション品質の確保
 
-## Core Concepts
+## コア概念
 
-| Concept       | Description                                                       |
-| ------------- | ----------------------------------------------------------------- |
-| Studio        | Visual drag-and-drop pipeline builder                             |
-| Pipeline      | ETL/ELT workflow composed of sources, transforms, and sinks       |
-| Plugin        | Connector unit: source, sink, transform, or action                |
-| Hub           | Marketplace for pre-built plugins, pipelines, and datasets        |
-| Wrangler      | Interactive data cleaning tool embedded in Data Fusion            |
-| Namespace     | Logical isolation boundary for pipelines and resources            |
-| Replication   | CDC-based replication feature (uses Datastream under the hood)    |
+| 概念        | 説明                                                                  |
+| ----------- | --------------------------------------------------------------------- |
+| Studio      | ビジュアルなドラッグ&ドロップのパイプラインビルダー                   |
+| Pipeline    | source/transform/sink で構成されるETL/ELTワークフロー                  |
+| Plugin      | コネクタ単位（source/sink/transform/action）                           |
+| Hub         | 事前構築のplugins/pipelines/datasets のマーケットプレイス              |
+| Wrangler    | Data Fusionに組み込まれた対話型データクリーニングツール                |
+| Namespace   | パイプラインとリソースの論理的な分離境界                              |
+| Replication | CDCベースのレプリケーション機能（内部的にDatastreamを利用）            |
 
-## Editions
+## エディション
 
-| Edition         | Key Additions                                                       |
-| --------------- | ------------------------------------------------------------------- |
-| **Developer**   | For development and testing only; not for production                |
-| **Basic**       | Production workloads, standard connectors                           |
-| **Enterprise**  | Data lineage, metadata management, private VPC, row-level security  |
+| エディション       | 主な追加                                                   |
+| ------------------ | ---------------------------------------------------------- |
+| **Developer**      | 開発/テスト専用（本番不可）                                |
+| **Basic**          | 本番ワークロード、標準コネクタ                             |
+| **Enterprise**     | データリネージ、メタデータ管理、private VPC、行レベルセキュリティ |
 
-## Constraints
-- Latency: batch and micro-batch; not the first choice for sub-second streaming
-- Scale: medium to large; depends on underlying execution engine
-- Consistency: deterministic batch pipelines
-- Cost: higher than SQL-only or simple batch; justified by connector breadth and governance
-- Operational overhead: moderate (managed service but pipeline lifecycle and plugins)
-- Batch vs streaming: mainly batch; streaming supported but not primary exam default
+## 制約
+- レイテンシ: バッチ/マイクロバッチ。サブ秒ストリーミングの第一候補ではない。
+- スケール: 中〜大（下位の実行エンジンに依存）。
+- 一貫性: 決定的なバッチパイプライン。
+- コスト: SQLのみ/単純バッチより高いが、コネクタの幅とガバナンスで正当化される。
+- 運用負荷: 中（マネージドだが、パイプラインのライフサイクルとpluginsを扱う）。
+- バッチ vs ストリーミング: 主にバッチ（ストリーミングも可能だが試験の第一想起ではない）。
 
-| Service          | Best When                                                        | Fails When                                               |
-| ---------------- | ---------------------------------------------------------------- | -------------------------------------------------------- |
-| **Data Fusion**  | Managed ETL with many connectors, reusable pipelines, governance | Very low-latency streaming or simple SQL transforms      |
-| **Dataflow**     | High-scale batch/streaming with custom code                      | Business users need GUI/low-code; connector-rich ETL     |
-| **Dataprep**     | Visual, ad-hoc data cleaning                                     | Production ETL with multiple sources and governance      |
-| **BigQuery SQL** | Pure SQL transformations in BigQuery                             | Multi-source ETL or complex non-SQL transforms           |
+| サービス           | 適する条件                                                         | 失敗する条件                                           |
+| ------------------ | ------------------------------------------------------------------ | ------------------------------------------------------ |
+| **Data Fusion**    | コネクタが豊富なマネージドETL、再利用可能なパイプライン、ガバナンス | 超低レイテンシのストリーミング、単純なSQL変換          |
+| **Dataflow**       | カスタムコードでの大規模バッチ/ストリーミング                      | GUI/ローコードが必須、コネクタ中心のETL                |
+| **Dataprep**       | ビジュアルなアドホック データクリーニング                          | 本番のマルチソースETL、ガバナンスが必要                |
+| **BigQuery SQL**   | BigQuery内で完結するSQL変換                                        | マルチソースETL、非SQLの複雑変換                       |
 
-## Correct Choice
-- Pick **Data Fusion** when the constraints emphasize **connector-rich ETL**, **reusable pipelines**, and **managed governance** with moderate ops effort.
-- Pick **Dataflow** for custom code, large-scale batch/streaming.
-- Pick **Dataprep** for analyst-driven, visual, ad-hoc prep.
-- Pick **BigQuery SQL** when transformations are SQL-only in BigQuery.
+## 正しい選択
+- 制約が **コネクタ中心のETL**、**再利用可能なパイプライン**、**マネージドなガバナンス**（運用負荷は中）を強調するなら、**Data Fusion**。
+- カスタムコードや大規模バッチ/ストリーミングなら **Dataflow**。
+- アナリスト主導のビジュアル/アドホック準備なら **Dataprep**。
+- BigQueryでSQLだけの変換なら **BigQuery SQL**。
 
-## Why Not the Others
-- **Dataflow:** higher engineering effort; not ideal for GUI-driven, connector-heavy ETL.
-- **Dataprep:** designed for ad-hoc prep, not production ETL with many sources.
-- **BigQuery SQL:** limited to BQ data and SQL transformations.
+## 他を選ばない理由
+- **Dataflow:** エンジニアリング負荷が高い。GUI主導のコネクタ中心ETLには不向き。
+- **Dataprep:** アドホック準備向けで、マルチソース本番ETLには不向き。
+- **BigQuery SQL:** BigQuery内のデータとSQL変換に限定される。
 
-## Common Exam Traps
-- Choosing **Dataflow** for a "low-code ETL with many connectors" requirement → points to **Data Fusion**.
-- Confusing **Data Fusion** with **Dataprep** — both are visual/low-code, but Data Fusion is for production multi-source ETL; Dataprep is for analyst-driven, ad-hoc cleaning.
-- Choosing Data Fusion for **sub-second streaming** → it is batch/micro-batch first; use **Dataflow** for real-time.
-- Assuming Data Fusion is cost-efficient for small or frequent jobs → Dataproc cluster startup overhead makes it expensive for trivial workloads.
+## よくある試験の罠
+- 「コネクタが多いローコードETL」要件で **Dataflow** を選ぶ → **Data Fusion** が筋。
+- **Data Fusion** と **Dataprep** の混同 — どちらもビジュアル/ローコードだが、Data Fusionは本番マルチソースETL、Dataprepはアナリスト主導のアドホッククリーニング。
+- **サブ秒ストリーミング** にData Fusionを選ぶ → バッチ/マイクロバッチが前提。リアルタイムは **Dataflow**。
+- 小規模/高頻度ジョブでData Fusionを「安い」と思い込む → Dataprocクラスタ起動オーバーヘッドで、些細な処理ほど割高になりやすい。

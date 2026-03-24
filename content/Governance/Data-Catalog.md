@@ -1,65 +1,65 @@
 # Data Catalog
 
-Data Catalog is GCP's managed metadata and discovery service. It helps you find, describe, tag, and govern data assets across services like BigQuery and Cloud Storage without moving the data.
+Data Catalog は、GCPのマネージド メタデータ/ディスカバリサービスである。データを移動せずに、BigQueryやCloud Storageなどのサービス横断でデータ資産を見つけ、記述し、タグ付けし、ガバナンスするのに役立つ。
 
-## Use Cases
-- Create a searchable inventory of datasets, tables, and files.
-- Apply business and technical metadata (owners, sensitivity, definitions).
-- Standardize governance with tags and policy tags.
-- Improve discoverability for analysts and downstream teams.
+## ユースケース
+- データセット/テーブル/ファイルの検索可能な棚卸しを作る。
+- ビジネス/技術メタデータ（オーナー、機微度、定義）を付与する。
+- タグとpolicy tagsでガバナンスを標準化する。
+- アナリストや下流チームのdiscoverabilityを高める。
 
-## Mental Model
-- Data Catalog stores metadata only, not the data itself.
-- Entries represent assets; tags add meaning and governance context.
-- Policy tags drive column-level access control in BigQuery.
-- It complements, not replaces, tools like [[Governance/Dataplex|Dataplex]].
-- **Auto-extracts metadata** from [[Storage/BigQuery|BigQuery]], [[Cloud-Storage|Cloud Storage]], [[OperationalDBs/Bigtable|Bigtable]], and [[Ingestion/PubSub|Pub/Sub]] — no custom scripting needed.
-- PostgreSQL on Compute Engine is not a managed metadata source, so Data Catalog cannot auto-scan it; use a connector.
+## メンタルモデル
+- Data Catalogが保存するのはメタデータのみで、データ本体は保存しない。
+- entryが資産を表し、tagが意味とガバナンス文脈を付与する。
+- policy tags がBigQueryの列レベルアクセス制御を駆動する。
+- [[Governance/Dataplex|Dataplex]] のようなツールを置き換えるのではなく補完する。
+- [[Storage/BigQuery|BigQuery]]、[[Cloud-Storage|Cloud Storage]]、[[OperationalDBs/Bigtable|Bigtable]]、[[Ingestion/PubSub|Pub/Sub]] から **メタデータを自動抽出** する（カスタムスクリプト不要）。
+- Compute Engine上のPostgreSQLはマネージドメタデータソースではないため自動スキャンできない。コネクタを使う。
 
-## Core Concepts
-- Entry: a data asset (table, dataset, file set, or custom entry).
-- Tag template: schema for metadata fields (owner, PII, SLA, etc.).
-- Tag: metadata instance attached to an entry.
-- Policy tag: taxonomy for column-level security in BigQuery.
+## コア概念
+- Entry：データ資産（テーブル、データセット、ファイルセット、またはカスタムentry）。
+- Tag template：メタデータフィールド（owner、PII、SLAなど）のスキーマ。
+- Tag：entryに付与されるメタデータ実体。
+- Policy tag：BigQueryの列レベルセキュリティのタクソノミー。
 
-## Common Patterns
-- Tag datasets with owners and SLAs to clarify accountability.
-- Classify columns with policy tags for sensitive data controls.
-- Use business tags to align assets with domains or products.
-- Keep discovery current by auto-ingesting supported services.
-- For Cloud Storage migrations, run [[Security/DLP|DLP]] to detect PII and then attach tags in Data Catalog to label sensitive objects.
-- Store PII analysis results as structured tag metadata (e.g. `contains_pii: true`, `pii_type: [name, dob]`) so findings are queryable and retrievable later — this is a metadata storage problem, not a detection, anonymization, or encryption problem.
+## よくあるパターン
+- データセットにownerとSLAをタグ付けし、説明責任を明確化する。
+- 機微データ制御のために、列をpolicy tagsで分類する。
+- ビジネスタグで資産をドメイン/プロダクトに紐づける。
+- 対応サービスの自動取り込みでdiscoveryを最新に保つ。
+- Cloud Storage移行では、[[Security/DLP|DLP]] でPIIを検出し、Data Catalogのタグで機微オブジェクトをラベル付けする。
+- PII分析結果を構造化タグメタデータ（例：`contains_pii: true`、`pii_type: [name, dob]`）として保存し、後でクエリ/取得できるようにする。これは「検出/匿名化/暗号化」ではなくメタデータ保存の問題。
 
-## Integrations
+## 連携
 - [[Storage/BigQuery|BigQuery]]: tables, datasets, policy tags.
 - [[Cloud-Storage|Cloud Storage]]: file set metadata for lakes.
 - [[Governance/Dataplex|Dataplex]]: catalog and governance at scale.
 - [[Security/IAM|IAM]]: governs who can view and edit metadata.
 
-## Security And Access Control
-- Use least-privilege [[Security/IAM|IAM]] for catalog access.
-- Control tag visibility to limit sensitive metadata exposure.
-- Use policy tags to enforce column-level security in BigQuery.
-- Column security works only if policy tag access control is enabled and users lack `roles/datacatalog.categoryFineGrainedReader`.
-- **tagTemplateViewer** is required to view non‑public tag templates; it’s redundant if the template is **public**.
+## セキュリティとアクセス制御
+- カタログアクセスには最小権限の [[Security/IAM|IAM]] を使う。
+- タグの可視性を制御し、機微メタデータの露出を抑える。
+- BigQueryの列レベルセキュリティはpolicy tagsで強制する。
+- 列セキュリティは、policy tag access controlが有効で、かつユーザーが `roles/datacatalog.categoryFineGrainedReader` を持たない場合にのみ効く。
+- 非公開タグテンプレートの閲覧には **tagTemplateViewer** が必要。テンプレートが **public** なら冗長。
 
-## Operations And Reliability
-- Keep tag templates consistent across domains.
-- Review and prune stale tags to avoid confusion.
-- Document ownership and definitions for critical assets.
+## 運用と信頼性
+- タグテンプレートをドメイン横断で一貫させる。
+- 混乱を避けるため、古いタグはレビューして整理する。
+- 重要資産のオーナーと定義を文書化する。
 
-## Common Pitfalls
-- Leaving tags empty or skipping them entirely — untagged assets are invisible to governance and search; empty tags are noise; enforce shared tag templates across domains at rollout, not retroactively.
-- Inconsistent tag schemas across teams — each team defining its own templates fragments search and makes cross-domain governance impossible; agree on a canonical template set before onboarding teams.
-- Assuming catalog visibility grants data access — Data Catalog controls who sees and edits metadata; actual data access is governed separately by IAM on BigQuery, GCS, and other resources.
-- Forgetting to restrict `categoryFineGrainedReader` for policy tags — policy tags only block column access if this role is withheld; granting it too broadly (e.g. to a large group or `allUsers`) silently defeats the column-level control.
-- Expecting auto-scan for non-managed sources — Data Catalog auto-extracts from BigQuery, GCS, Bigtable, and Pub/Sub; custom or on-prem sources (PostgreSQL on Compute Engine, etc.) require a connector or manual entry.
-- Not writing DLP scan results back as catalog tags — running DLP detects PII but does not populate Data Catalog automatically; explicitly write findings as structured tags (`contains_pii: true`, `pii_type`) so sensitive assets are discoverable and auditable.
-- Confusing Data Catalog with [[Governance/Dataplex|Dataplex]] for lake-scale governance — Data Catalog handles discovery and tagging; Dataplex provides lake management, data quality rules, and unified governance across zones at scale.
+## よくある落とし穴
+- タグを空のままにする/そもそも付与しない — タグなし資産はガバナンス/検索から見えない。空タグはノイズ。あとからではなく、導入時に共通テンプレートを強制する。
+- チーム間でタグスキーマが不一致 — チームごとのテンプレート乱立で検索が分断され、ドメイン横断ガバナンスができない。オンボーディング前に正準テンプレートを合意する。
+- カタログ可視性＝データアクセスと誤解する — Data Catalogはメタデータの閲覧/編集を制御するだけで、データ本体はBigQuery/GCS等のIAMで別途制御される。
+- policy tags の `categoryFineGrainedReader` 制限を忘れる — policy tagsは、このroleが付与されていない場合にのみ列アクセスをブロックする。広範（大グループ/`allUsers` 等）に付与すると列制御が黙って無効化される。
+- 非マネージドソースの自動スキャンを期待する — 自動抽出はBigQuery/GCS/Bigtable/Pub/Subが対象。カスタム/on-premソース（Compute Engine上PostgreSQL等）はコネクタか手動entryが必要。
+- DLPスキャン結果をカタログタグへ書き戻さない — DLPはPII検出してもData Catalogを自動更新しない。発見結果を構造化タグ（`contains_pii: true`, `pii_type`）として明示的に書き込み、発見性と監査性を担保する。
+- Data Catalog と [[Governance/Dataplex|Dataplex]] をレイク規模ガバナンスで混同する — Data Catalogはdiscovery/タグ付け。Dataplexはlake管理、データ品質ルール、zone横断の統合ガバナンスを提供する。
 
-## Quick Checklist
-- Define tag templates for ownership, sensitivity, and SLAs.
-- Classify sensitive columns with policy tags.
-- Register key datasets and lake locations.
-- Assign metadata owners and review cadence.
-- Document how teams should discover and request access.
+## クイックチェックリスト
+- オーナー/機微度/SLAのタグテンプレートを定義する。
+- 機微列をpolicy tagsで分類する。
+- 主要データセットとレイクロケーションを登録する。
+- メタデータオーナーとレビュー頻度を決める。
+- チームがどう発見し、どうアクセス申請するかを文書化する。

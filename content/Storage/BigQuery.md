@@ -1,109 +1,109 @@
 # BigQuery
 
-BigQuery is GCP's fully managed, serverless data warehouse — columnar storage, SQL at scale, separated compute and storage.
+BigQuery は、GCPのフルマネージドなサーバレスデータウェアハウスである。カラムナストレージ、スケールするSQL、コンピュートとストレージの分離が特徴。
 
-## Use Cases
-- Central analytics warehouse for dashboards, reporting, and ad-hoc analysis.
-- ELT target: land data (often via [[Cloud-Storage|Cloud Storage]]) and transform with SQL.
-- Curated serving layer for downstream consumers (BI, data science, ML features).
-- Fast exploration over large datasets with governance and fine-grained access controls.
+## ユースケース
+- ダッシュボード、レポーティング、アドホック分析のための中央分析ウェアハウス。
+- ELTのターゲット：データを着地（多くは [[Cloud-Storage|Cloud Storage]] 経由）させ、SQLで変換する。
+- 下流コンシューマ（BI、データサイエンス、ML特徴量）向けのキュレート済みサービング層。
+- ガバナンスときめ細かなアクセス制御を伴う、大規模データセットの高速な探索。
 
-## Mental Model
-- Storage and compute are separated: data lives in tables; queries run as jobs using shared compute.
-- Location matters: keep [[Cloud-Storage|GCS]]/[[Processing/Dataflow|Dataflow]]/[[Processing/Dataproc|Dataproc]] in the same region/dual-region as your dataset to avoid egress surprises.
-- Everything is a job: queries, loads, extracts, and copies create auditable job records.
+## メンタルモデル
+- ストレージとコンピュートは分離される：データはテーブルに保存され、クエリは共有コンピュートを使うジョブとして実行される。
+- ロケーションが重要：エグレスの想定外コストを避けるため、[[Cloud-Storage|GCS]]/[[Processing/Dataflow|Dataflow]]/[[Processing/Dataproc|Dataproc]] はデータセットと同じリージョン/デュアルリージョンに揃える。
+- すべてがジョブ：クエリ、ロード、エクスポート、コピーは監査可能なジョブ記録を残す。
 
-## Core Resources
+## 主要リソース
 
-| Resource          | Description                                                |
+| リソース           | 説明                                                       |
 | ----------------- | ---------------------------------------------------------- |
-| Project           | Billing + IAM boundary                                     |
-| Dataset           | Container for tables/views; has a location + access policy |
-| Table             | Native (managed) or external (pointer to GCS files)        |
-| View              | Saved query; useful for abstraction and access control     |
-| Materialized view | Precomputed results; auto-refreshes incrementally          |
-| Routines          | UDFs and stored procedures                                 |
-| Jobs              | Query/load/extract/copy work units                         |
+| プロジェクト        | 課金 + IAMの境界                                           |
+| データセット        | テーブル/ビューのコンテナ（ロケーション + アクセスポリシーを持つ） |
+| テーブル            | ネイティブ（マネージド）または外部（GCSファイルへのポインタ）      |
+| ビュー              | 保存クエリ（抽象化とアクセス制御に有用）                    |
+| マテリアライズドビュー | 事前計算結果（増分で自動更新）                              |
+| ルーチン            | UDFとストアドプロシージャ                                   |
+| ジョブ              | query/load/extract/copy の作業単位                          |
 |                   |                                                            |
 
-## Storage And Table Types
+## ストレージとテーブル種別
 
-**Native tables** — data in BigQuery-managed columnar storage; best performance and governance for warehousing.
+**ネイティブテーブル** — BigQuery管理のカラムナストレージにデータを保持する。ウェアハウス用途で性能とガバナンスが最適。
 
-**External tables** — query files in [[Cloud-Storage|GCS]] (Parquet/Avro/CSV/JSON/ORC) without loading; good for exploration and staging with performance/cost tradeoffs.
-- `.xlsx` is **not supported** — convert to CSV first.
-- External tables are GCS-only; S3 requires BigQuery Omni, and BigLake tables provide table-level access without direct bucket permissions.
-- **External Performance:** For external tables on GCS with millions of small files, convert to **BigLake** and enable **metadata caching** to reduce file/metadata overhead and improve query latency; plain external tables stay slow. 
+**外部テーブル** — [[Cloud-Storage|GCS]] 上のファイル（Parquet/Avro/CSV/JSON/ORC）をロードせずにクエリする。性能/コストのトレードオフはあるが、探索やステージングに有用。
+- `.xlsx` は **未サポート** — 先にCSVへ変換する。
+- 外部テーブルはGCSのみ対応。S3はBigQuery Omniが必要。BigLakeテーブルは、バケットへの直接権限なしでテーブル単位のアクセスを提供する。
+- **外部テーブルの性能:** GCS上の外部テーブルで小さいファイルが数百万ある場合、**BigLake** に変換し **metadata caching** を有効化して、ファイル/メタデータのオーバーヘッドを下げ、クエリレイテンシを改善する。通常の外部テーブルは遅いままになりやすい。
 
-**Semi-structured** — nested/repeated fields (`STRUCT`, `ARRAY`) are first-class; JSON type exists but strongly typed columns are easier to optimize and govern.
+**半構造** — ネスト/繰り返しフィールド（`STRUCT`, `ARRAY`）はファーストクラス。JSON型もあるが、強い型付けの列の方が最適化とガバナンスが容易。
 
-**Data management:**
-- Table expiration for transient/staging datasets.
-- Time travel: query prior versions within the retention window ("oops" recovery).
-- Snapshots/clones for point-in-time copies for debugging or controlled reprocessing.
-- Recovery rule: Time Travel within 7 days; beyond 7 days or fixed restore points → table snapshots or GCS export.
-- Partition by time (or monthly tables) to limit blast radius.
-- For history analytics and SCD-like patterns, prefer a **denormalized, append-only** table with ingestion/effective timestamps — keeps history queryable and BI-friendly without snapshot overhead.
+**データ管理:**
+- 一時/ステージング用データセットではテーブル有効期限を設定する。
+- Time Travel：保持期間内の過去バージョンをクエリできる（「やらかし」復旧）。
+- スナップショット/クローン：デバッグや制御された再処理のためのポイントインタイムコピー。
+- 復旧ルール：7日以内は Time Travel、7日超または固定の復旧ポイントが必要 → テーブルスナップショットまたはGCSエクスポート。
+- 影響範囲（blast radius）を抑えるために、時間パーティション（または月次テーブル）を使う。
+- 履歴分析やSCD風のパターンでは、取り込み/有効時刻を持つ **非正規化の追記専用（append-only）** テーブルを優先する（スナップショットのオーバーヘッドなしで履歴をクエリ可能にし、BIにも扱いやすい）。
 
-**Schema evolution:**
-- Only add `NULLABLE` columns or relax `REQUIRED`.
-- Renames and type changes require a new table + backfill — `ALTER COLUMN` for rename or retype is not supported.
+**スキーマ進化:**
+- 追加は `NULLABLE` 列のみ、または `REQUIRED` の緩和のみ。
+- リネームと型変更は新規テーブル + バックフィルが必要（リネーム/型変更の `ALTER COLUMN` はサポートされない）。
 
-## Materialized Views
-- Precompute and store aggregated results for repeated analytical queries.
-- Auto-refresh based on base table changes, typically incrementally.
-- Reduce scanned data and improve latency for compatible query patterns.
-- If a BigQuery query contains **OUTER JOINs or window functions**, incremental materialized views are unsupported. Use a **non-incremental materialized view** (`allow_non_incremental_definition = TRUE`) and set `max_staleness` (e.g., 8 hours) so refresh-time computation keeps dashboards fast while meeting data freshness requirements.
+## マテリアライズドビュー
+- 繰り返し実行する分析クエリ向けに、集計結果を事前計算して保存する。
+- ベーステーブルの変更に基づき自動更新する（通常は増分）。
+- 対応するクエリパターンでは、スキャン量削減とレイテンシ改善ができる。
+- BigQueryクエリに **OUTER JOIN** や **ウィンドウ関数** が含まれる場合、増分マテリアライズドビューは非対応。**非増分マテリアライズドビュー**（`allow_non_incremental_definition = TRUE`）を使い、`max_staleness`（例：8時間）を設定して、鮮度要件を満たしつつダッシュボードを高速化する。
 
-## Partitioning And Clustering (Performance + Cost)
+## パーティショニングとクラスタリング（性能 + コスト）
 
-Partitioning reduces scanned bytes by pruning irrelevant partitions.
+パーティショニングは、不要なパーティションをプルーニングしてスキャンバイトを削減する。
 
-| Type            | When To Use                                        |
+| 種別            | 使う場面                                             |
 | --------------- | -------------------------------------------------- |
-| Time-unit       | Queries routinely filter by DATE/TIMESTAMP (most common) |
-| Ingestion-time  | Quick to start; less explicit control              |
-| Integer range   | Partition by a numeric range                       |
+| 時間単位         | クエリがDATE/TIMESTAMPで継続的にフィルタする（最も一般的） |
+| 取り込み時刻      | すぐ始められるが、制御が明示的でない                  |
+| 整数レンジ        | 数値レンジでパーティション分割する                   |
 
-Clustering sorts data within partitions by up to 4 columns for better filter/join pruning.
+クラスタリングは、パーティション内を最大4列でソートし、フィルタ/結合のプルーニングを改善する。
 
-**Rules of thumb:**
-- Partition by time when queries filter by time; cluster by frequently filtered/joined columns (often IDs).
-- Consider `require partition filter` on large tables to prevent accidental full scans.
-- Verify clustering impact with real query patterns — don't assume.
-- For time-series tables, prefer partitioning on event time (for example, `measurement_date`) over ingestion time when retention/reporting is based on business time.
+**経験則:**
+- クエリが時間でフィルタするなら時間パーティション、頻繁にフィルタ/結合する列（多くはID）でクラスタリングする。
+- 大規模テーブルでは、意図しないフルスキャン防止のため `require partition filter` を検討する。
+- 実際のクエリパターンでクラスタリング効果を検証する（思い込みで決めない）。
+- 時系列テーブルで保持/レポートが業務時刻に基づくなら、取り込み時刻よりイベント時刻（例：`measurement_date`）でパーティション分割する。
 
-| Option | Best For | Why It Wins / Fails |
+| 選択肢 | 最適 | 勝つ/負ける理由 |
 | --- | --- | --- |
-| Time-unit partitioning on `measurement_date` | Analytics and retention based on event/measurement time | Keeps exactly the most recent measured data window (for example, last 120 measured days). |
-| Ingestion-time partitioning | Fast raw landing when event time is missing/unreliable | Fails business-time retention needs because it keeps last ingest days, not last measured days. |
+| `measurement_date` の時間単位パーティション | イベント/計測時刻に基づく分析と保持 | 直近の「計測された」期間（例：直近120計測日）だけを正確に保持できる。 |
+| 取り込み時刻パーティション | イベント時刻が欠損/信頼できない場合の高速なraw着地 | 直近の取り込み日数を保持してしまい、直近の計測日数を保持できないため、業務時刻ベースの保持要件に失敗する。 |
 
-- Set partition expiration on the partitioned table (for example, `120` days) to auto-delete old partitions and control storage cost.
-- **Common trap:** choosing ingestion-time partitioning for domain-time analytics when the question asks for actual measured-time retention.
+- パーティションテーブルにパーティション有効期限（例：`120` days）を設定し、古いパーティションを自動削除してストレージコストを制御する。
+- **よくある罠:** 問いが「実際の計測時刻での保持」を求めているのに、取り込み時刻パーティションを選ぶ。
 
-## Ingestion (How Data Gets In)
+## 取り込み（データが入る経路）
 
-**Batch (preferred for bulk loads):**
-- Load jobs from [[Cloud-Storage|GCS]] (Parquet/Avro recommended for analytics).
-- Use explicit schemas and stable file naming for predictable reruns/backfills.
+**バッチ（バルクロード推奨）:**
+- [[Cloud-Storage|GCS]] からロードジョブ（分析にはParquet/Avro推奨）。
+- 明示的なスキーマと安定したファイル命名で、再実行/バックフィルを予測可能にする。
 
-**Streaming:**
-- Storage Write API: modern option; higher throughput and better ergonomics.
-- Legacy streaming inserts: last resort for new designs.
-- **CDC (Change Data Capture)**: streams row‑level INSERT/UPDATE/DELETE events to keep BigQuery in sync without full reloads.
+**ストリーミング:**
+- Storage Write API：現代的な選択肢（より高スループットで扱いやすい）。
+- Legacy streaming inserts：新規設計では最終手段。
+- **CDC (Change Data Capture)**：行レベルの INSERT/UPDATE/DELETE イベントをストリーミングし、フルリロードなしでBigQueryと同期させる。
 
-**ELT inside BigQuery:**
-- `CREATE TABLE AS SELECT` for initial builds.
-- `MERGE` for incremental upserts.
-- Partition overwrites when a full partition/day can be safely rebuilt.
-- For CDC, use **append‑only staging + scheduled MERGE** into reporting; avoid per‑row UPDATE/DELETE (OLTP‑style).
+**BigQuery内ELT:**
+- 初回構築は `CREATE TABLE AS SELECT`。
+- 増分アップサートは `MERGE`。
+- パーティション/日単位で安全に作り直せる場合はパーティション上書き。
+- CDCでは、レポーティングに対して **追記専用ステージング + 定期MERGE** を使う（OLTP風の行単位 UPDATE/DELETE は避ける）。
 
-## Transform Patterns (Raw → Curated)
+## 変換パターン（Raw → Curated）
 
 ```mermaid
 flowchart TB
 
-subgraph SRC["📥 Ingestion"]
+subgraph SRC["📥 取り込み（Ingestion）"]
     S1[Cloud Storage]
     S2[Storage Write API]
     S3[Datastream]
@@ -111,35 +111,35 @@ end
 
 subgraph BQ["💾 BigQuery"]
     direction LR
-    EXT[External Tables]
-    R["raw.*"] -->|ELT| DF[Dataform] -->|transforms| ST["staging.*"] -->|promote| CU["curated.*"]
-    CU -->|precompute| MV[Materialized<br/>Views]
-    CU -->|in-memory cache| BIE[BI Engine]
-    CU -->|publish| AH[Analytics<br/>Hub]
-    CU -->|restrict access| AV[Authorized<br/>Views]
+    EXT[外部テーブル]
+    R["raw.*"] -->|ELT| DF[Dataform] -->|変換処理| ST["staging.*"] -->|昇格（本番反映）| CU["curated.*"]
+    CU -->|事前計算| MV[マテリアライズド<br/>ビュー]
+    CU -->|インメモリキャッシュ| BIE[BI Engine]
+    CU -->|公開| AH[Analytics<br/>Hub]
+    CU -->|アクセス制御| AV[認可<br/>ビュー]
 end
 
-subgraph OUT["📊 Consumers"]
+subgraph OUT["📊 利用者（Consumers）"]
     O1[BI / Looker]
-    O2[ML<br/>Pipelines]
-    O3[Apps / APIs]
-    O4[External<br/>Subscribers]
+    O2[ML<br/>パイプライン]
+    O3[アプリ / API]
+    O4[外部<br/>購読者]
 end
 
-S1 -->|load job| R
-S1 -.->|query in place| EXT
-S2 -->|stream write| R
-S3 -->|CDC| R
+S1 -->|ロードジョブ| R
+S1 -.->|その場クエリ（外部参照）| EXT
+S2 -->|ストリーミング書き込み| R
+S3 -->|変更データキャプチャ（CDC）| R
 
-MV -->|cached reads| O1
-BIE -->|accelerated queries| O1
-AV -->|governed| O1
-AV -->|governed| O3
-CU -->|features| O2
-AH -->|shared datasets| O4
+MV -->|キャッシュ読み取り| O1
+BIE -->|高速クエリ| O1
+AV -->|ガバナンス制御| O1
+AV -->|ガバナンス制御| O3
+CU -->|特徴量提供| O2
+AH -->|共有データセット| O4
 ```
 
-Incremental upsert:
+増分アップサート:
 ```sql
 MERGE `curated.orders` T
 USING `staging.orders_delta` S
@@ -150,82 +150,82 @@ WHEN NOT MATCHED THEN
   INSERT (order_id, amount, updated_at) VALUES (S.order_id, S.amount, S.updated_at);
 ```
 
-## Querying Features
-- Standard SQL: window functions, CTEs, analytic functions, arrays/structs.
-- Scripting: multi-statement SQL with variables and control flow.
-- UDFs: prefer SQL UDFs; use JavaScript UDFs sparingly (governance/debugging overhead).
-- Stored procedures: useful for encapsulation; keep pipelines observable (log row counts, failures, input ranges).
+## クエリ機能
+- Standard SQL：ウィンドウ関数、CTE、分析関数、arrays/structs。
+- Scripting：変数と制御フローを含むマルチステートメントSQL。
+- UDF：SQL UDFを優先し、JavaScript UDFは必要最小限にする（ガバナンス/デバッグの運用負荷）。
+- ストアドプロシージャ：カプセル化に有用。ただしパイプラインの可観測性（行数、失敗、入力範囲のログ）を維持する。
 
-## Performance And Cost
+## 性能とコスト
 
-**Cost drivers:** storage (active vs long-term) · bytes scanned (on-demand) · slots (capacity) · streaming ingestion.
+**コスト要因:** ストレージ（アクティブ vs 長期） · スキャンバイト（オンデマンド） · スロット（キャパシティ） · ストリーミング取り込み。
 
-**Day-to-day levers:**
-- Select only needed columns; avoid `SELECT *` in production queries.
-- Filter on partition columns so pruning can happen.
-- Prefer materialized views for repeated aggregations that match supported patterns.
-- Use `APPROX_*` functions when exact answers aren't required.
+**日々の調整ポイント:**
+- 必要な列だけを選ぶ（本番クエリでの `SELECT *` を避ける）。
+- パーティション列でフィルタし、プルーニングを効かせる。
+- サポートされるパターンに合う繰り返し集計はマテリアライズドビューを優先する。
+- 厳密性が不要なら `APPROX_*` 関数を使う。
 
-**Capacity vs on-demand:**
-- On-demand: simplest; pay per bytes scanned.
-- Capacity/slots: predictable at scale; use reservations/assignments to separate prod/dev and protect SLAs.
-- Reservations attach via **assignments (org/folder/project)**, not datasets or individual jobs; project scope is typical for isolation.
+**キャパシティ vs オンデマンド:**
+- オンデマンド：最も簡単。スキャンバイト課金。
+- キャパシティ（スロット）：大規模では予測可能。予約/割り当てでprod/devを分離し、SLAを守る。
+- 予約はデータセットや個別ジョブではなく **assignments（org/folder/project）** で紐づく。分離にはプロジェクトスコープが一般的。
 
-**Query priority:**
+**クエリ優先度:**
 
-| Priority | Latency | Best For | Avoid When |
+| 優先度 | レイテンシ | 最適 | 避ける場面 |
 | --- | --- | --- | --- |
-| Interactive (default) | Starts quickly | User-facing analytics, ad-hoc, low-latency needs | Workload can wait |
-| Batch | Queued (can wait up to 24h) | Non-urgent ETL/backfills | Dashboard/SLA-sensitive workloads |
+| Interactive（default） | すぐ開始する | ユーザー向け分析、アドホック、低レイテンシ要件 | 待てるワークロード |
+| Batch | キュー待ち（最大24h） | 緊急でないETL/バックフィル | ダッシュボード/SLAが厳しいワークロード |
 
-- In on-demand pricing, both interactive and batch queries are still charged by bytes processed.
-- Use `bq query --batch 'SELECT ...'` for non-urgent jobs.
-- **Common trap:** choosing batch priority when the requirement is immediate query results.
-- Estimate on-demand query cost with: `estimated_cost ~= (bytes_processed / 1 TB) * price_per_TB`.
-- Use dry run to estimate scanned bytes before execution:
+- on-demand課金では、InteractiveとBatchのどちらも処理バイトで課金される。
+- 緊急でないジョブには `bq query --batch 'SELECT ...'` を使う。
+- **よくある罠:** 要件が「即時に結果が必要」なのにBatch優先度を選ぶ。
+- on-demandのクエリ費用は `estimated_cost ~= (bytes_processed / 1 TB) * price_per_TB` で概算できる。
+- 実行前にdry runでスキャンバイトを見積もる：
 ```bash
 bq query --use_legacy_sql=false --dry_run 'SELECT ...'
 ```
 
-## Security, Governance, And Sharing
+## セキュリティ、ガバナンス、共有
 
-**IAM:** grant access at dataset level; use groups/service accounts, not individual users.
+**IAM:** アクセス付与はデータセット単位で行う。個人ユーザーではなく、グループ/サービスアカウントを使う。
 
-**Fine-grained access:**
+**きめ細かなアクセス制御:**
 
-| Need | Use | Avoid | Why |
+| 要件 | 使う | 避ける | 理由 |
 |---|---|---|---|
-| Hide specific columns (e.g. PII) by user/group | CLS (policy tags) | Dataset IAM only | IAM is too coarse; CLS enforced via policy tag permissions |
-| Share a safe column subset without base table access | Authorized views | CLS alone | Authorized views are the exam-default when base table access must be denied |
-| Different users see different rows | RLS | CLS | CLS hides columns, not rows |
+| ユーザー/グループごとに特定列（例：PII）を隠す | CLS（policy tags） | Dataset IAM only | IAMは粗すぎる。CLSはポリシータグ権限で強制される |
+| ベーステーブルへのアクセスなしで安全な列サブセットだけ共有する | Authorized views | CLS alone | ベーステーブルアクセスを拒否する必要がある場合、試験ではAuthorized viewsが基本解 |
+| ユーザーごとに見える行が異なる | RLS | CLS | CLSは列を隠すが、行は隠さない |
 
-- For broad consumer analytics, prefer de-identified datasets created with [[Security/DLP|DLP]] upstream.
-- For org-wide sharing, publish a masked/tokenized version via [[Processing/Dataflow|Dataflow]] + [[Security/DLP|DLP]] — not just encrypted storage.
+- 広いコンシューマ向け分析では、上流で [[Security/DLP|DLP]] により匿名化（de-identified）したデータセットを優先する。
+- 組織横断共有では、[[Processing/Dataflow|Dataflow]] + [[Security/DLP|DLP]] でマスキング/トークン化した版を公開する（暗号化ストレージだけでは不十分）。
 
 **CLS:**
-- Policy tags enforce only when **policy tag access control** is enabled on the taxonomy — otherwise they behave like labels.
-- Removing `roles/bigquery.dataViewer` alone doesn't help if users still have `roles/datacatalog.categoryFineGrainedReader` on the policy tag.
+- ポリシータグは、タクソノミーで **policy tag access control** を有効化している場合にのみ強制される（そうでなければラベルのように振る舞う）。
+- `roles/bigquery.dataViewer` を外すだけでは不十分なことがある。ポリシータグに対して `roles/datacatalog.categoryFineGrainedReader` を持っていれば見える。
 
-**Analytics Hub** — publish datasets cross-team without duplicating data; consumers subscribe from their own projects; central governance with low operational overhead.
-- If the external org does not have Cloud KMS key access, do not share CMEK-protected tables directly; publish a de-identified copy in a non-CMEK dataset via Analytics Hub.
-- Per-user crypto-deletion needs **column-level AEAD in BigQuery + per-user KMS keys** (destroy key = delete access); **CMEK** only encrypts the whole table/dataset, so it can’t delete a single user.
-- Exchange = catalog for discovery (not storage); use Analytics Hub for cross‑org sharing via listings
+**Analytics Hub** — データを複製せずにチーム横断でデータセットを公開する。コンシューマは自分のプロジェクトからサブスクライブし、運用負荷を抑えつつ中央ガバナンスを効かせられる。
+- 外部組織がCloud KMS鍵にアクセスできない場合、CMEK保護テーブルを直接共有しない。Analytics Hubで、非CMEKデータセットに匿名化コピーを公開する。
+- ユーザー単位の暗号削除（crypto-deletion）には **BigQueryの列レベルAEAD + ユーザー単位のKMS鍵** が必要（鍵破棄＝アクセス削除）。**CMEK** はテーブル/データセット全体の暗号化であり、単一ユーザーだけを削除できない。
+- Exchange = 発見のためのカタログ（ストレージではない）。組織間共有はAnalytics Hubのlistingで行う。
 
-**Encryption:** default at rest; CMEK via [[Cloud-KMS]] for customer-managed keys.
+**暗号化:** 既定は保存時暗号化。顧客管理鍵は [[Cloud-KMS]] 経由のCMEKを使う。
 
-**Auditing:** Cloud Audit Logs answer **who accessed what** (admin + data access) but do **not** show slot/queue bottlenecks; use `INFORMATION_SCHEMA.JOBS*` for per‑query metrics (bytes processed, slot time, queue time, user). Pair with the Admin Resource dashboard for system‑wide slot saturation.
+**監査:** Cloud Audit Logsは **誰が何にアクセスしたか**（管理 + データアクセス）を答えるが、スロット/キューのボトルネックは分からない。クエリ単位の指標（処理バイト、slot time、queue time、ユーザー）は `INFORMATION_SCHEMA.JOBS*` を使う。システム全体のスロット飽和は Admin Resource ダッシュボードと組み合わせる。
 
-## Integrations
-- [[Cloud-Storage]]: batch loads/extracts; external tables.
-- [[Processing/Dataflow|Dataflow]]: streaming/batch pipelines to/from BigQuery.
-- [[Processing/Dataproc|Dataproc]]/Spark: read/write via connectors; often staged through [[Cloud-Storage|GCS]].
-- Looker/BI: semantic models and dashboards on curated tables.
-- Use BigQuery for full history and a serving DB (Cloud SQL/Bigtable/Firestore) for low‑latency “latest state”; build a `latest_state` table via stream/ETL to avoid scanning history for every API call.
+## 連携
+- [[Cloud-Storage]]：バッチロード/エクスポート、外部テーブル。
+- [[Processing/Dataflow|Dataflow]]：BigQueryとの入出力を行うストリーミング/バッチパイプライン。
+- [[Processing/Dataproc|Dataproc]]/Spark：コネクタ経由の読み書き（多くは [[Cloud-Storage|GCS]] をステージングに使う）。
+- Looker/BI：キュレート済みテーブル上のセマンティックモデルとダッシュボード。
+- 完全な履歴はBigQueryに置き、低レイテンシの「最新状態」はサービングDB（Cloud SQL/Bigtable/Firestore）に置く。API呼び出しのたびに履歴をスキャンしないよう、ストリーム/ETLで `latest_state` テーブルを構築する。
 
-## Quick Checklist
-- Choose dataset location (align with regional strategy).
-- Define naming conventions (`raw`, `staging`, `curated`) and ownership labels.
-- Partition/cluster large tables on real query patterns; consider requiring partition filters.
-- Choose ingestion method (load vs streaming) and make pipelines idempotent.
-- Set least-privilege IAM; add RLS/CLS for sensitive data.
-- Add cost guardrails (budgets/quotas) and monitor expensive queries via `INFORMATION_SCHEMA`.
+## クイックチェックリスト
+- データセットのロケーションを決める（リージョン戦略に揃える）。
+- 命名規約（`raw`, `staging`, `curated`）とオーナーラベルを定義する。
+- 実際のクエリパターンに基づき、大規模テーブルをパーティション/クラスタ化する（パーティションフィルタ必須化も検討）。
+- 取り込み方式（load vs streaming）を選び、パイプラインを冪等にする。
+- 最小権限IAMを設定し、機微データにはRLS/CLSを追加する。
+- コストのガードレール（budgets/quotas）を追加し、`INFORMATION_SCHEMA` で高額クエリを監視する。

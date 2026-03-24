@@ -1,59 +1,60 @@
 # IAM
 
-Identity and Access Management (IAM) controls who can do what on which GCP resources. It is the core of least-privilege access for data platforms.
+Identity and Access Management（IAM）は、どのGCPリソースに対して誰が何をできるかを制御する。データプラットフォームにおける最小権限アクセスの中核。
 
-## Use Cases
-- Grant access to datasets, buckets, and pipelines.
-- Separate admin duties from data access.
-- Control service account permissions for jobs and workflows.
+## ユースケース
+- データセット、バケット、パイプラインへのアクセスを付与する。
+- 管理業務とデータアクセスを分離する。
+- ジョブ/ワークフローのサービスアカウント権限を制御する。
 
-## Mental Model
-- Policies bind principals to roles on resources.
-- Roles are collections of permissions.
-- Deny by default; grant only what is needed.
+## メンタルモデル
+- ポリシーが、リソース上でprincipalとroleを紐づける。
+- roleは権限（permissions）の集合。
+- 既定は拒否。必要なものだけを付与する。
 
-## Core Concepts
-- Principal: user, group, service account, or domain.
-- Role: predefined or custom set of permissions.
-- Policy: bindings of principals to roles on a resource.
-- Resource hierarchy: org -> folder -> project -> resource.
+## コア概念
+- Principal：ユーザー、グループ、サービスアカウント、またはドメイン。
+- Role：事前定義またはカスタムの権限セット。
+- Policy：リソース上の、principalとroleのbinding。
+- リソース階層：org -> folder -> project -> resource。
 
-## Service Accounts
-- Use for workloads and pipelines, not humans.
-- Rotate keys and avoid long-lived keys when possible.
-- Grant minimal roles per workload.
+## サービスアカウント
+- 人ではなく、ワークロード/パイプラインに使う。
+- 可能なら長期キーを避け、鍵ローテーションを行う。
+- ワークロードごとに最小限のroleを付与する。
 
-**Credential hierarchy (prefer top over bottom):**
-1. **Attached service account** (VM, Cloud Run, Dataflow job) — no key file created; credentials are short-lived, auto-rotating, fetched via the metadata server. This is the recommended approach.
-2. **Workload Identity Federation** — for workloads outside GCP; exchanges external identity tokens for short-lived GCP credentials.
-3. **[[Secret-Manager\|Secret Manager]]** — only if a key file is truly unavoidable; better than hardcoding, but still a long-lived credential that must be rotated manually.
+**認証情報の優先順位（上ほど推奨）:**
+1. **Attached service account**（VM/Cloud Run/Dataflowジョブ）— キーファイルを作らない。認証情報は短命で自動ローテーションされ、メタデータサーバから取得される。基本的にこれが正解。
+2. **Workload Identity Federation** — GCP外のワークロード向け。外部IDトークンを短命のGCP認証情報へ交換する。
+3. **[[Secret-Manager\|Secret Manager]]** — キーファイルが本当に不可避な場合のみ。ハードコードよりは良いが、手動ローテーションが必要な長期認証情報である。
 
-> Storing a service account key in Secret Manager is an improvement over hardcoding it, but the correct answer is usually to avoid creating a key file at all by attaching the service account directly to the resource.
+> サービスアカウントキーをSecret Managerに保存するのは、ハードコードより改善だが、通常の正解は「そもそもキーファイルを作らず、リソースにサービスアカウントを直接アタッチする」ことである。
 
-## Security And Governance
-- Use least privilege and resource-level bindings.
-- Separate admin roles from data access roles.
-- Use audit logs to monitor access and policy changes.
-- Use VPC Service Controls to create service perimeters that block cross-project data access.
-- Cloud Logging: `roles/logging.viewer` cannot read private Data Access logs; use `roles/logging.privateLogViewer` for audit visibility.
+## セキュリティとガバナンス
+- 最小権限とリソース単位のbindingを使う。
+- 管理roleとデータアクセスroleを分離する。
+- 監査ログでアクセスとポリシー変更を監視する。
+- VPC Service Controlsでサービスペリメータを作り、プロジェクト間のデータアクセスを遮断する。
+- Cloud Logging：`roles/logging.viewer` は非公開のData Accessログを読めない。監査の可視性には `roles/logging.privateLogViewer` を使う。
 
-## Design Tips
-- Prefer group-based access for humans.
-- Use conditional IAM for time or resource constraints.
-- Avoid over-broad roles like Owner/Editor in production.
+## 設計のコツ
+- 人間にはグループベースアクセスを優先する。
+- 時間/リソース制約には条件付きIAMを使う。
+- 本番でOwner/Editorのような過剰に広いroleを避ける。
 
-## Integrations
-- [[Cloud-SQL|Cloud SQL]]: Auth proxy/connectors use `roles/cloudsql.client` for secure access.
-- [[Cloud-Storage|Cloud Storage]] / [[Storage/BigQuery|BigQuery]]: dataset and bucket access control.
-- [[Processing/Dataflow|Dataflow]] / [[Processing/Dataproc|Dataproc]]: service accounts for job execution.
+## 連携
+- [[Cloud-SQL|Cloud SQL]]：Auth proxy/connectors はセキュア接続のために `roles/cloudsql.client` を使う。
+- [[Cloud-Storage|Cloud Storage]] / [[Storage/BigQuery|BigQuery]]：データセット/バケットのアクセス制御。
+- [[Processing/Dataflow|Dataflow]] / [[Processing/Dataproc|Dataproc]]：ジョブ実行用サービスアカウント。
 
-## Common Pitfalls
-- Granting broad roles to users instead of service accounts.
-- Forgetting to remove temporary access.
-- Relying only on network allowlists without IAM controls.
-- Assuming IAM conditions alone prevent data exfiltration across projects.
-## Quick Checklist
-- Define the resource boundary.
-- Choose least-privilege roles.
-- Bind groups/service accounts, not individuals.
-- Enable audit log monitoring.
+## よくある落とし穴
+- サービスアカウントではなくユーザーに広いroleを付与する。
+- 一時的なアクセスを剥がし忘れる。
+- IAM制御なしにネットワーク許可リストだけに依存する。
+- IAM条件だけでプロジェクト間のデータ持ち出し（exfiltration）が防げると誤解する。
+
+## クイックチェックリスト
+- リソース境界を定義する。
+- 最小権限のroleを選ぶ。
+- 個人ではなくグループ/サービスアカウントをbindingする。
+- 監査ログ監視を有効化する。

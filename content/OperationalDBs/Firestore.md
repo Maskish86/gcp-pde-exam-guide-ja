@@ -1,21 +1,21 @@
 # Firestore
 
-Firestore is GCP's serverless document database for operational workloads. It stores JSON-like documents, supports real-time updates, and scales automatically.
+Firestore は、運用ワークロード向けのGCPサーバレス ドキュメントデータベースである。JSON風ドキュメントを保存し、リアルタイム更新をサポートし、自動的にスケールする。
 
-## Use Cases
-- Store application state or metadata needed by pipelines (configs, checkpoints, user state).
-- Build event-driven apps that react to changes via triggers.
-- Provide low-latency reads for dashboards, APIs, and mobile/web apps.
-- Avoid managing database servers and capacity planning.
+## ユースケース
+- パイプラインに必要なアプリ状態/メタデータ（設定、チェックポイント、ユーザー状態）を保存する。
+- トリガーで変更に反応するイベント駆動アプリを構築する。
+- ダッシュボード、API、モバイル/ウェブアプリ向けに低レイテンシ読み取りを提供する。
+- DBサーバ運用とキャパシティ計画を避ける。
 
-## Mental Model
-- Data lives in documents grouped into collections.
-- Documents are small, indexed, and read via queries or direct keys.
-- Real-time listeners stream changes as they happen.
-- Costs are per read/write/delete and per stored data.
+## メンタルモデル
+- データはドキュメントにあり、コレクションでグルーピングされる。
+- ドキュメントは小さくインデックスされ、クエリまたは直接キーで読み取られる。
+- リアルタイムリスナーが変更をストリームする。
+- コストは read/write/delete と保存データ量に基づく。
 
-## Quick Mental Mapping Table
-| Relational Concept | Firestore Equivalent |
+## クイック対応表（メンタルマッピング）
+| リレーショナル概念 | Firestoreの対応 |
 | ------------------ | -------------------- |
 | Database           | Project              |
 | Table              | Kind / Collection    |
@@ -23,77 +23,77 @@ Firestore is GCP's serverless document database for operational workloads. It st
 | Column             | Field / Property     |
 | Index              | Index                |
 
-## Core Concepts
-- Document: JSON-like record (max 1 MiB) with fields.
-- Collection: group of documents.
-- Subcollection: collection nested under a document.
-- Index: required for most queries; composite indexes for multi-field filters.
-- Query: filters, ordering, and limits over a collection.
+## コア概念
+- Document：フィールドを持つJSON風レコード（最大1MiB）。
+- Collection：ドキュメントの集合。
+- Subcollection：ドキュメント配下にネストされたコレクション。
+- Index：多くのクエリで必要。複数フィールドフィルタは複合インデックス。
+- Query：コレクションに対するフィルタ、並び替え、件数制限。
 
-## Data Modeling Patterns
-- Denormalize for reads: duplicate fields to avoid joins.
-- Use map fields for sparse attributes; arrays for small lists.
-- Prefer fan-out writes over deep, unbounded nesting.
-- Keep hot documents small to reduce contention.
+## データモデリングパターン
+- 読み取りのために非正規化する：joinを避けるためにフィールドを複製する。
+- スパース属性にはmap fields、小さなリストにはarraysを使う。
+- 深く無限にネストするより、ファンアウト書き込みを優先する。
+- hot document は小さく保ち、競合を減らす。
 
-## Queries And Indexing
+## クエリとインデックス
 
-**Single-field indexes — automatic:**
-- Every field gets an **ascending** and **descending** index automatically (exam term: "atomic values, ascending/descending").
-- No manual setup needed for simple equality or range queries on one field.
+**単一フィールドインデックス（自動）:**
+- すべてのフィールドに **昇順** と **降順** のインデックスが自動で作られる（試験用語：「atomic values, ascending/descending」）。
+- 1フィールドの単純な等価/範囲クエリでは手動設定が不要。
 
-**Composite indexes — manual:**
-- Multi-field filters or mixed sort orders require an explicit composite index.
-- Firestore won't run the query without it — it fails at runtime.
+**複合インデックス（手動）:**
+- 複数フィールドのフィルタ、または並び順の混在には、明示的な複合インデックスが必要。
+- ない場合、Firestoreはクエリを実行できず、実行時に失敗する。
 
-| Index Type | Created By | Covers |
+| インデックス種別 | 作成 | 対象 |
 | --- | --- | --- |
-| Single-field (atomic, asc + desc) | Automatic | One-field filters and sorts |
-| Composite | Manual | Multi-field filters or mixed ordering |
+| Single-field（atomic、asc + desc） | Automatic | 1フィールドのフィルタ/ソート |
+| Composite | Manual | 複数フィールドのフィルタ、または順序混在 |
 
-- Queries need indexes that match the filter and sort order exactly.
-- Inequality filters (`<`, `>`, `!=`) require an index and constrain sort order.
-- Collection group queries scan all subcollections sharing the same name.
+- クエリは、フィルタとソート順に正確に一致するインデックスが必要。
+- 不等号フィルタ（`<`, `>`, `!=`）はインデックスが必要で、ソート順にも制約を与える。
+- collection group query は、同名のsubcollectionをすべて横断してスキャンする。
 
->"Composite, single value" is not a valid Firestore index type. Automatic indexes are **single-field only** — ascending and descending. Any multi-field combination requires a manually created composite index.
+>「Composite, single value」はFirestoreの正しいインデックス種別ではない。自動インデックスは **単一フィールドのみ**（昇順・降順）。複数フィールドの組み合わせは、手動で複合インデックスを作成する必要がある。
 
-## Transactions And Consistency
-- Strong consistency for document reads in the same region.
-- Transactions are optimistic and retry on conflicts.
-- Batch writes group up to 500 operations.
-- Design for idempotency when retried.
+## トランザクションと整合性
+- 同一リージョン内のドキュメント読み取りは強整合。
+- トランザクションは楽観的で、競合時にリトライされる。
+- batch writes は最大500操作をまとめられる。
+- リトライされる前提で冪等に設計する。
 
-## Scaling And Limits
-- Horizontal scaling is automatic.
-- Write throughput is limited per document; spread writes across keys.
-- Use sharded counters for high-write aggregates.
-- Keep document sizes below limits for stable latency.
+## スケーリングと制限
+- 水平スケールは自動。
+- 書き込みスループットはドキュメント単位で制限されるため、書き込みをキーに分散する。
+- 高頻度集計には sharded counters を使う。
+- 安定レイテンシのため、ドキュメントサイズは制限未満に保つ。
 
-## Security And Access Control
-- Use [[Security/IAM|IAM]] for admin access and service accounts.
-- Firestore Security Rules protect client access.
-- Prefer service-to-service access for pipelines.
+## セキュリティとアクセス制御
+- 管理アクセスとサービスアカウントには [[Security/IAM|IAM]] を使う。
+- Firestore Security Rules がクライアントアクセスを保護する。
+- パイプラインはサービス間アクセスを優先する。
 
-## Integrations
+## 連携
 - Cloud Functions: trigger on document create/update/delete.
 - Cloud Run: read/write operational state for services.
 - [[Processing/Dataflow|Dataflow]]: sync operational state or metadata.
 - [[Storage/BigQuery|BigQuery]]: export for analytics (via export or Dataflow).
 
-## Monitoring And Ops
-- Track read/write rates and latency.
-- Alert on spikes in reads or writes (cost risk).
-- Watch index build times and failures.
+## 監視と運用
+- read/writeレートとレイテンシを追跡する。
+- read/writeのスパイクにアラートを設定する（コストリスク）。
+- インデックス構築時間と失敗を監視する。
 
-## Common Pitfalls
+## よくある落とし穴
 - Assuming SQL joins or complex aggregations.
 - Unindexed queries failing at runtime.
 - Hot document writes causing contention.
 - Overlooking cost impact of frequent reads.
 
-## Quick Checklist
-- Define collections, document keys, and access patterns.
-- Create required composite indexes before launch.
-- Set Security Rules and test them.
-- Plan for idempotent writes and retries.
-- Monitor costs and query patterns early.
+## クイックチェックリスト
+- コレクション、ドキュメントキー、アクセスパターンを定義する。
+- 必要な複合インデックスをローンチ前に作成する。
+- Security Rules を設定し、テストする。
+- 冪等な書き込みとリトライを計画する。
+- コストとクエリパターンを早期に監視する。

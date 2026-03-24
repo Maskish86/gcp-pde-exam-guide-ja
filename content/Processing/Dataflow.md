@@ -1,75 +1,75 @@
 # Dataflow
 
-Dataflow is GCP's managed Apache Beam service — unified batch and streaming pipelines, autoscaling workers, no infrastructure to manage.
+Dataflow は、GCPのマネージド Apache Beam サービスである。バッチ/ストリーミングを統一したパイプライン、ワーカーのオートスケール、管理すべきインフラ不要が特徴。
 
-## Use Cases
-- Stream processing from [[Ingestion/PubSub|Pub/Sub]] or [[Cloud-Storage|Cloud Storage]] into curated sinks (often [[Storage/BigQuery|BigQuery]]).
-- Batch ETL for large backfills or daily rebuilds with parallel transforms.
-- Event-time analytics with windowing, late data handling, and stateful aggregations.
-- Data enrichment joins across datasets without managing Spark clusters.
+## ユースケース
+- [[Ingestion/PubSub|Pub/Sub]] または [[Cloud-Storage|Cloud Storage]] から、キュレート済みシンク（多くは [[Storage/BigQuery|BigQuery]]）へストリーム処理する。
+- 大規模バックフィルや日次リビルドのための、並列変換を伴うバッチETL。
+- ウィンドウ、遅延データ処理、ステートフル集計を用いたイベント時刻（event-time）分析。
+- Sparkクラスタを運用せずに、データセット間のエンリッチ結合を行う。
 
-## Mental Model
-- A pipeline is a DAG of transforms applied to PCollections of records.
-- The runner (Dataflow) decides how to parallelize and scale the graph across workers.
-- Streaming is event-time first: watermarks, windows, and triggers define output timing.
-- Correctness depends on keys, windowing, and idempotent sinks — not just code.
+## メンタルモデル
+- パイプラインは、レコードの PCollections に transform を適用するDAGである。
+- runner（Dataflow）が、グラフをワーカーにどう並列化し、どうスケールさせるかを決める。
+- ストリーミングはevent-time優先：watermark、window、trigger が出力タイミングを定義する。
+- 正しさはコードだけでなく、キー、ウィンドウ、冪等なシンクに依存する。
 
-## Core Concepts
+## コア概念
 
-| Concept           | Description                                                                |
+| 概念              | 説明                                                                       |
 | ----------------- | -------------------------------------------------------------------------- |
-| Pipeline          | Your Beam graph and options (project, region, temp GCS path)               |
-| PCollection       | Immutable collection of elements; bounded (batch) or unbounded (streaming) |
-| Keyed PCollection | `GroupByKey`/`CombinePerKey` require `PCollection<KV<K,V>>`                |
-| PTransform        | A step in the graph (map, filter, group, join, write)                      |
-| DoFn              | Per-element user code; use for streaming/side outputs vs BigQuery UDF (set-based SQL) |
-| Runner            | Execution engine — Dataflow in GCP                                         |
-| Worker            | VM/container executing pipeline steps                                      |
-| Job               | A running instance of a pipeline on Dataflow                               |
-| Template          | Pre-built job spec for repeatable runs (classic or Flex Template)          |
+| Pipeline          | Beamのグラフとオプション（project、region、一時GCSパス）                    |
+| PCollection       | 不変の要素コレクション（有界=バッチ / 無界=ストリーミング）                 |
+| Keyed PCollection | `GroupByKey`/`CombinePerKey` は `PCollection<KV<K,V>>` が必要               |
+| PTransform        | グラフの1ステップ（map、filter、group、join、write）                        |
+| DoFn              | 要素ごとのユーザーコード（ストリーミング/side outputs向け。BigQuery UDFは集合指向SQL） |
+| Runner            | 実行エンジン（GCPではDataflow）                                             |
+| Worker            | パイプラインステップを実行するVM/コンテナ                                   |
+| Job               | Dataflow上で動くパイプラインの実行インスタンス                               |
+| Template          | 反復実行用の事前構築ジョブ仕様（classic / Flex Template）                    |
 
-> For keyed aggregations, shape data as `PCollection<KV<K,V>>` first and prefer `CombinePerKey` over `GroupByKey` when possible.
+> キー付き集計では、まず `PCollection<KV<K,V>>` の形に整え、可能なら `GroupByKey` より `CombinePerKey` を優先する。
 
-## Batch vs Streaming
+## バッチ vs ストリーミング
 
-|                  | Batch                        | Streaming                                         |
+|                  | バッチ                        | ストリーミング                                      |
 | ---------------- | ---------------------------- | ------------------------------------------------- |
-| **Data**         | Bounded                      | Unbounded                                         |
-| **Sources**      | GCS, BigQuery                | Pub/Sub, Kafka, change streams                    |
-| **Windowing**    | Not needed                   | Required for aggregations                         |
-| **Delivery**     | Exactly-once                 | At-least-once; exactly-once depends on sink semantics |
+| **データ**         | 有界                         | 無界                                              |
+| **ソース**         | GCS, BigQuery                | Pub/Sub, Kafka, change streams                    |
+| **ウィンドウ**      | 不要                         | 集計では必須                                       |
+| **配信**           | Exactly-once                 | At-least-once（exactly-onceはシンクの性質に依存）  |
 
-## Pipeline Architecture
+## パイプライン構成
 
 ```mermaid
 flowchart TB
 
-subgraph SRC["📥 Sources"]
-    PS["Pub/Sub<br/>(unbounded · streaming)"]
-    GCS["Cloud Storage<br/>(bounded · batch)"]
-    BQ_IN["BigQuery<br/>(bounded · batch)"]
+subgraph SRC["📥 ソース"]
+    PS["Pub/Sub<br/>(無界 · ストリーミング)"]
+    GCS["Cloud Storage<br/>(有界 · バッチ)"]
+    BQ_IN["BigQuery<br/>(有界 · バッチ)"]
 end
 
 subgraph DF["⚙️ Dataflow — Apache Beam"]
     direction LR
-    WIN["Window<br/>(fixed · sliding · session)"]
-    WM["Watermark<br/>(event-time progress)"]
-    TRG["Trigger<br/>(early · on-time · late)"]
-    TR["PTransforms<br/>(map · filter · enrich · aggregate)"]
-    DLQ["Dead-Letter Output<br/>(bad records)"]
+    WIN["ウィンドウ<br/>(固定 · スライディング · セッション)"]
+    WM["ウォーターマーク<br/>(イベント時刻の進捗)"]
+    TRG["トリガー<br/>(早期 · オンタイム · 遅延)"]
+    TR["PTransforms<br/>(マップ · フィルタ · エンリッチ · 集計)"]
+    DLQ["デッドレター出力<br/>(不正レコード)"]
     WIN --> WM --> TRG --> TR
-    TR -.->|parse / schema errors| DLQ
+    TR -.->|パース/スキーマエラー| DLQ
 end
 
-subgraph SNK["📤 Sinks"]
+subgraph SNK["📤 出力先"]
     BQ_OUT[BigQuery]
     GCS_OUT["Cloud Storage<br/>(Parquet · Avro · JSON)"]
     BT[Bigtable]
 end
 
-PS -->|unbounded stream| WIN
-GCS -->|bounded batch| TR
-BQ_IN -->|bounded batch| TR
+PS -->|無界ストリーム| WIN
+GCS -->|有界バッチ| TR
+BQ_IN -->|有界バッチ| TR
 
 TR --> BQ_OUT
 TR --> GCS_OUT
@@ -77,38 +77,38 @@ TR --> BT
 DLQ --> GCS_OUT
 ```
 
-## Windowing, Watermarks, And Triggers
+## ウィンドウ、ウォーターマーク、トリガー
 
-| Window Type       | Behaviour                                          | Use For                                                         |
+| ウィンドウ種別      | 挙動                                               | 用途                                                             |
 | ----------------- | -------------------------------------------------- | --------------------------------------------------------------- |
-| Fixed (tumbling)  | Non-overlapping; each event in exactly one window  | Periodic metrics (per minute/hour)                              |
-| Sliding (hopping) | Overlapping; events can appear in multiple windows | Rolling metrics (e.g. avg over past hour, updated every minute) |
-| Session           | Variable-length; closes after a gap of inactivity  | User behaviour, non-continuous streams                          |
+| Fixed (tumbling)  | 非重複（各イベントはちょうど1つのウィンドウに属する） | 定期メトリクス（分/時）                                          |
+| Sliding (hopping) | 重複（イベントが複数ウィンドウに入りうる）           | ローリングメトリクス（例：過去1時間平均を毎分更新）               |
+| Session           | 可変長（非アクティブのギャップ後にクローズ）         | ユーザー行動、非連続ストリーム                                    |
 
-- **Watermark**: system estimate of event-time progress.
-- **Allowed lateness**: how long to accept late-arriving events.
-- **Triggers**: when to emit results (on watermark, early, or late).
-- Keep triggers simple if outputs must be stable; handle late data explicitly.
-- For late data, use Dataflow allowed lateness/watermarks
+- **ウォーターマーク**: event-time進捗に関するシステム推定。
+- **許容遅延（Allowed lateness）**: 遅延到着イベントを受け入れる期間。
+- **トリガー**: 結果を出すタイミング（watermark、early、late）。
+- 出力を安定させる必要があるなら、triggerは単純にし、遅延データは明示的に扱う。
+- 遅延データにはDataflowの allowed lateness / watermarks を使う。
 
-## Keys, State, And Timers
-- Keys define parallelism and aggregation boundaries.
-- Per-key state and timers enable sessionization, dedupe, and complex joins.
-- Skewed keys bottleneck the pipeline — watch for "hot keys".
+## キー、ステート、タイマー
+- キーが並列性と集計境界を決める。
+- キー単位のステートとタイマーで、セッション化、重複排除、複雑な結合が可能になる。
+- キー偏りはパイプラインのボトルネックになる（hot keysに注意）。
 
-## Sources And Sinks
+## ソースとシンク
 
-**Sources:** [[Ingestion/PubSub|Pub/Sub]] · [[Cloud-Storage|Cloud Storage]] · [[Storage/BigQuery|BigQuery]] · [[OperationalDBs/Bigtable|Bigtable]] · [[OperationalDBs/Spanner|Spanner]] · Kafka
+**ソース:** [[Ingestion/PubSub|Pub/Sub]] · [[Cloud-Storage|Cloud Storage]] · [[Storage/BigQuery|BigQuery]] · [[OperationalDBs/Bigtable|Bigtable]] · [[OperationalDBs/Spanner|Spanner]] · Kafka
 
-**Sinks:** [[Storage/BigQuery|BigQuery]] · [[Cloud-Storage|Cloud Storage]] (Parquet/Avro/JSON) · [[OperationalDBs/Bigtable|Bigtable]] · [[OperationalDBs/Spanner|Spanner]] · [[Ingestion/PubSub|Pub/Sub]]
+**シンク:** [[Storage/BigQuery|BigQuery]] · [[Cloud-Storage|Cloud Storage]]（Parquet/Avro/JSON） · [[OperationalDBs/Bigtable|Bigtable]] · [[OperationalDBs/Spanner|Spanner]] · [[Ingestion/PubSub|Pub/Sub]]
 
-## Development And Deployment
-- Write pipelines in Java/Python/Go; test locally with the DirectRunner.
-- Run on Dataflow for managed, scalable execution.
-- Use templates (classic or Flex) for repeatable jobs with runtime parameters.
-- Keep temp and staging paths in [[Cloud-Storage|Cloud Storage]] — regional alignment matters.
+## 開発とデプロイ
+- パイプラインを Java/Python/Go で書き、DirectRunnerでローカルテストする。
+- マネージドでスケーラブルに実行するため、Dataflow上で動かす。
+- ランタイムパラメータ付きの反復実行にはテンプレート（classic / Flex）を使う。
+- temp/staging のパスは [[Cloud-Storage|Cloud Storage]] に置く（リージョン整合が重要）。
 
-## Example Pattern (Pub/Sub → Windowed Aggregate → BigQuery)
+## 例パターン（Pub/Sub → ウィンドウ集計 → BigQuery）
 ```python
 with beam.Pipeline(options=opts) as p:
     (p
@@ -120,90 +120,91 @@ with beam.Pipeline(options=opts) as p:
      | "ToBQ"      >> beam.io.WriteToBigQuery(table, write_disposition="WRITE_APPEND"))
 ```
 
-## Performance And Cost
-- Favor `Combine` over `GroupByKey` to reduce shuffle volume.
-- Shuffle-heavy transforms (`GroupByKey`, `CoGroupByKey`) drive cost and time.
-- Autoscaling handles spiky workloads but can add cold-start latency.
-- Worker caps use `--maxNumWorkers`; Dataproc/GKE autoscaling settings don’t apply to Dataflow workers.
-- Streaming Engine reduces worker load at extra cost — evaluate with real traffic.
-- Worker sizing: start with defaults, tune machine type and disk from there.
+## 性能とコスト
+- shuffle量を減らすため、`GroupByKey` より `Combine` を優先する。
+- shuffle負荷の大きいtransform（`GroupByKey`, `CoGroupByKey`）がコストと時間を押し上げる。
+- オートスケールはスパイクに強いが、コールドスタートのレイテンシが増えうる。
+- ワーカー上限は `--maxNumWorkers` を使う（Dataproc/GKEのオートスケール設定はDataflowワーカーに適用されない）。
+- Streaming Engine は追加コストでワーカー負荷を下げる（実トラフィックで評価する）。
+- ワーカーサイジング：まず既定から始め、マシンタイプとディスクを調整する。
 
-**High-QPS external calls:**
-- Use `FixedWindows` + `GroupIntoBatches` (or `BatchElements`) with max batch size/bytes and max delay.
-- Call the API once per batch with retries — avoids per-element HTTP overhead.
+**高QPSな外部呼び出し:**
+- 最大バッチサイズ/バイトと最大遅延を設定し、`FixedWindows` + `GroupIntoBatches`（または `BatchElements`）を使う。
+- リトライ込みで「バッチあたり1回」APIを呼ぶ（要素ごとのHTTPオーバーヘッドを避ける）。
 
 **FlexRS:**
-- For non-urgent batch jobs only — not for streaming or strict SLAs.
-- Tradeoff: delayed start and longer runtime for lower cost.
+- 緊急でないバッチジョブ専用（ストリーミングや厳格なSLAには不向き）。
+- トレードオフ：起動が遅れ、実行時間が長くなる代わりに低コスト。
 
-## Stage Fusion And Reshuffle
-- **What fusion is:** Dataflow may merge adjacent transforms into one stage, so per-step metrics and parallelism are hidden.
-- **Example (problem):** `Pub/Sub → read GCS file → emit rows` can run as one fused stage on a single worker.
-- **Why it hurts scaling:** parallelism becomes “messages/files,” not “rows,” so autoscaling may see little backlog even for huge files.
-- **Visible symptom:** one large file is processed by one worker, even if it contains millions of rows.
-- **What `Reshuffle` does:** forces a shuffle boundary, creating a new stage with independent CPU/backlog/throughput metrics.
-- **Example (fix):** `Pub/Sub → read file → Reshuffle → process rows` lets rows fan out across workers.
-- **Rule of thumb:** use `Reshuffle` only when fusion blocks parallelism or for debugging; extra shuffles add latency and cost.
+## ステージフュージョンとReshuffle
+- **fusionとは:** Dataflowは隣接するtransformを1つのステージに統合することがあり、ステップ単位の指標と並列性が見えにくくなる。
+- **例（問題）:** `Pub/Sub → read GCS file → emit rows` が、単一ワーカー上の1ステージとして動きうる。
+- **なぜスケールを阻害するか:** 並列性が「行」ではなく「メッセージ/ファイル」になり、巨大ファイルでもバックログが小さく見えてオートスケールが効きにくい。
+- **見える症状:** 数百万行を含む大きなファイルでも、1ワーカーで処理される。
+- **`Reshuffle` の効果:** shuffle境界を強制し、独立したCPU/バックログ/スループット指標を持つ新しいステージを作る。
+- **例（解決）:** `Pub/Sub → read file → Reshuffle → process rows` で、行をワーカーへ扇状に分散できる。
+- **経験則:** `Reshuffle` はfusionが並列性を塞ぐ場合、またはデバッグ用途に限定する（余分なshuffleはレイテンシとコストを増やす）。
 
-## Reliability Patterns
-- Make outputs idempotent (deterministic keys, upserts, partition overwrites).
-- Use dead-letter outputs for bad records so the pipeline keeps moving.
-- Prefer **drain** over cancel for streaming changes — drain stops gracefully and preserves in-flight/windowed data; cancel drops it.
+## 信頼性パターン
+- 出力を冪等にする（決定的キー、upsert、パーティション上書き）。
+- 不正レコードはデッドレター出力に逃がし、パイプラインを止めない。
+- ストリーミング変更は cancel より **drain** を優先する（drainは優雅に停止し、in-flight/ウィンドウ中データを保持する。cancelは破棄する）。
 
 **Live pipeline updates:**
-- Use `--update` to preserve in-flight data and state; drain/cancel + redeploy risks state reset.
-- If transform names changed, include `--transformNameMapping` or Dataflow treats them as new transforms and drops state.
+**ライブパイプライン更新:**
+- in-flightデータとステートを保持するため `--update` を使う（drain/cancel + 再デプロイはステートリセットのリスク）。
+- transform名が変わった場合は `--transformNameMapping` を含める。そうしないとDataflowは新規transformとみなし、ステートを破棄する。
 
 **Key streaming metrics:**
 
-| Metric                   | Answers                                                   |
+| 指標                      | 分かること                                                |
 | ------------------------ | --------------------------------------------------------- |
-| `job/system_lag`         | Max time any element is waiting (worst backlog right now) |
-| `job/data_watermark_age` | Event-time progress / data freshness                      |
+| `job/system_lag`         | 要素が待っている最大時間（いま最悪のバックログ）            |
+| `job/data_watermark_age` | event-time進捗 / データ鮮度                                |
 
 
-## Regional Availability
-- Dataflow is a regional service; jobs run across multiple zones within the region.
-- `--region=...` enables zonal failover — workers reschedule in healthy zones automatically.
-- Mitigates single-zone failures; region-level outages still impact the job.
+## リージョン提供
+- Dataflowはリージョンサービスで、ジョブはリージョン内の複数ゾーンにまたがって動く。
+- `--region=...` によりゾーンフェイルオーバーが有効になり、ワーカーは健全なゾーンへ自動的に再スケジュールされる。
+- 単一ゾーン障害は緩和できるが、リージョン障害はジョブに影響する。
 
-## Security And Governance
-- Use service accounts with least-privilege IAM for sources/sinks.
-- Keep data locality consistent (region and data residency).
-- Use [[Security/DLP|DLP]] de-identification (masking/redaction) when producing analytics-ready data.
-- CMEK supported for customer-managed key requirements.
-- If org policy forbids external IPs, **enable Private Google Access on the subnet** so Dataflow workers can reach **GCS/BQ APIs**; VPC-SC/firewall rules don’t replace this.
+## セキュリティとガバナンス
+- ソース/シンクには最小権限のIAMを持つサービスアカウントを使う。
+- データローカリティ（リージョン/データレジデンシー）を揃える。
+- 分析可能データ（analytics-ready）を生成する場合、[[Security/DLP|DLP]] の匿名化（masking/redaction）を使う。
+- 顧客管理鍵要件ではCMEKを使える。
+- 組織ポリシーで外部IPが禁止なら、Dataflowワーカーが **GCS/BQ APIs** へ到達できるよう **サブネットでPrivate Google Accessを有効化** する（VPC-SC/ファイアウォールでは代替できない）。
 
-## Common Pitfalls
-- Hot keys bottlenecking a single worker — skewed key distribution funnels all work to one thread; salt keys or pre-aggregate with `CombinePerKey` before grouping.
-- Excessive small files from GCS sinks — high metadata overhead and slow downstream reads; tune `num_shards` or use byte-size write triggers.
-- Unbounded side inputs in streaming jobs — side inputs are fully reloaded per bundle and cannot grow indefinitely; use a bounded, periodically refreshed source or per-key state instead.
-- Misaligned regions across Dataflow, [[Cloud-Storage|Cloud Storage]], and [[Storage/BigQuery|BigQuery]] — causes cross-region data egress costs and added latency; co-locate all resources in the same region.
-- Aggregating streaming data without a window — unbounded PCollections cannot be grouped without `WindowInto`; the step never fires or throws at runtime.
-- Late data silently dropped — Dataflow drops elements past the watermark by default; set `allowed_lateness` on the window to accept and re-fire for late records.
-- Mixing up `system_lag` and `data_watermark_age` — `system_lag` is worst-case element wait time (backlog depth); `data_watermark_age` is event-time freshness; they answer different questions.
+## よくある落とし穴
+- hot keys が単一ワーカーをボトルネックにする — キー分布の偏りで作業が1スレッドに集中する。キーのソルト化、またはgrouping前に `CombinePerKey` で事前集計する。
+- GCSシンクからの小さいファイルが多すぎる — メタデータオーバーヘッドが大きく、下流の読み取りが遅い。`num_shards` を調整するか、バイトサイズの書き込みトリガーを使う。
+- ストリーミングジョブで無界なside inputsを使う — side inputsはbundleごとに再読み込みされ、無限に成長できない。代わりに、有界で定期リフレッシュされるソース、またはキー単位ステートを使う。
+- Dataflow / [[Cloud-Storage|Cloud Storage]] / [[Storage/BigQuery|BigQuery]] のリージョン不一致 — クロスリージョンのエグレスコストとレイテンシ増を招く。すべて同一リージョンに揃える。
+- ウィンドウなしでストリーミングを集計する — 無界PCollectionsは `WindowInto` なしにgroupできない（ステップが発火しない/実行時エラーになる）。
+- 遅延データが黙って捨てられる — 既定ではwatermarkを過ぎた要素はドロップされる。windowに `allowed_lateness` を設定し、遅延レコードを受け入れて再発火させる。
+- `system_lag` と `data_watermark_age` を混同する — `system_lag` は最悪ケースの待ち時間（バックログ深さ）、`data_watermark_age` はevent-timeの鮮度で、別の問いに答える。
 
-## Integrations
-- [[Storage/BigQuery|BigQuery]]: batch loads, streaming via Storage Write API, or file loads from GCS.
-- [[Cloud-Storage|Cloud Storage]]: staging/temp, batch sources, and final data lake outputs.
-- [[Ingestion/PubSub|Pub/Sub]]: common streaming input/output bus.
-- [[Ingestion/Datastream|Datastream]] / CDC tools: stream into Dataflow for transformation and routing.
-- For high‑frequency analytics off Cloud SQL, use **Datastream → BigQuery** to offload OLTP reads; use **Dataflow** only when you need transformation/routing.
+## 連携
+- [[Storage/BigQuery|BigQuery]]：バッチロード、Storage Write APIによるストリーミング、またはGCSからのファイルロード。
+- [[Cloud-Storage|Cloud Storage]]：staging/temp、バッチソース、データレイク最終出力。
+- [[Ingestion/PubSub|Pub/Sub]]：一般的なストリーミングの入出力バス。
+- [[Ingestion/Datastream|Datastream]] / CDCツール：変換/ルーティングのためにDataflowへ流す。
+- Cloud SQLの高頻度分析では、OLTP読み取りをオフロードするため **Datastream → BigQuery** を使い、変換/ルーティングが必要な場合のみ **Dataflow** を使う。
 
-## Pipeline Handoff
+## パイプラインの受け渡し
 
-| Use Case | Preferred Service | Reason |
+| ユースケース | 推奨サービス | 理由 |
 | --- | --- | --- |
-| Batch or intermediate files between pipelines | [[Cloud-Storage\|Cloud Storage]] | Durable shared store, large-scale file output, and simple IAM sharing |
-| Low-latency event handoff | [[Ingestion/PubSub\|Pub/Sub]] | Streaming bus for near-real-time message delivery |
+| パイプライン間のバッチ/中間ファイル | [[Cloud-Storage\|Cloud Storage]] | 耐久性のある共有ストア、大規模ファイル出力、単純なIAM共有 |
+| 低レイテンシのイベント受け渡し | [[Ingestion/PubSub\|Pub/Sub]] | ほぼリアルタイム配信のためのストリーミングバス |
 
-- Dataflow pipeline A cannot directly pass runtime data to pipeline B; both must read/write through an external service.
-- **Common trap:** selecting "direct Dataflow-to-Dataflow transfer" as an architecture option.
+- DataflowパイプラインAは、実行時データをパイプラインBへ直接渡せない。両者は外部サービスを介して読み書きする必要がある。
+- **よくある罠:** アーキテクチャ選択肢として「DataflowからDataflowへ直接転送」を選ぶ。
 
-## Quick Checklist
--  Choose region and align with [[Cloud-Storage|Cloud Storage]] / [[Storage/BigQuery|BigQuery]] datasets.
--  Decide batch vs streaming; define windowing strategy if streaming.
--  Define idempotent sinks and error handling (dead-letter) paths.
--  Size workers and enable autoscaling; monitor for skew/hot keys.
--  Use templates for repeatability and parameterized runs.
--  Add monitoring: logs, custom metrics, and alerting on lag.
+## クイックチェックリスト
+-  リージョンを選び、[[Cloud-Storage|Cloud Storage]] / [[Storage/BigQuery|BigQuery]] のデータセットと揃える。
+-  バッチかストリーミングかを決め、ストリーミングならウィンドウ戦略を定義する。
+-  冪等なシンクと、エラーハンドリング（デッドレター）経路を定義する。
+-  ワーカーをサイジングしてオートスケールを有効化し、偏り/hot keysを監視する。
+-  反復実行とパラメータ実行のためにテンプレートを使う。
+-  監視（ログ、カスタムメトリクス、ラグのアラート）を追加する。

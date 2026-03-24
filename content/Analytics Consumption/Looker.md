@@ -1,57 +1,57 @@
 # Looker
 
-Looker is GCP's enterprise BI and semantic modeling platform. It defines a governed data model (LookML) on top of sources like BigQuery and serves trusted metrics to dashboards and embedded apps.
+Looker は、GCPのエンタープライズBI/セマンティックモデリング基盤である。BigQueryなどのソース上にガバナンスされたデータモデル（LookML）を定義し、信頼できるメトリクスをダッシュボードや埋め込みアプリへ提供する。
 
-## Use Cases
-- Provide a single source of truth for business metrics and dimensions.
-- Prevent metric drift by centralizing definitions in LookML.
-- Serve governed dashboards with row/column-level access controls.
-- Embed analytics into internal apps with consistent logic.
+## ユースケース
+- ビジネスメトリクス/ディメンションの単一の正（single source of truth）を提供する。
+- LookMLで定義を中央集約し、メトリクスドリフトを防ぐ。
+- 行/列レベルのアクセス制御付きで、ガバナンスされたダッシュボードを提供する。
+- 一貫したロジックで、社内アプリに分析を埋め込む。
 
-## Mental Model
-- LookML defines the semantic layer; SQL is generated at query time.
-- Models separate raw tables from curated business views.
-- Caching improves performance but can hide data freshness issues.
-- Permissions are enforced at the semantic layer, not just the database.
+## メンタルモデル
+- LookMLがセマンティック層を定義し、SQLはクエリ時に生成される。
+- modelがrawテーブルと、キュレート済みビジネスビューを分離する。
+- キャッシュは性能を上げるが、データ鮮度問題を隠すことがある。
+- 権限はDBだけでなく、セマンティック層でも強制される。
 
-## Core Concepts
-- LookML: modeling language for dimensions, measures, joins, and explores.
-- Model: a collection of explores and connections.
-- Explore: a queryable view for end users.
-- View: maps to tables or derived tables.
-- Derived table: SQL-defined table (PDT/DT) for precomputation.
-- Dashboard: saved visualizations on top of explores.
+## コア概念
+- LookML：dimensions/measures/joins/explores を定義するモデリング言語。
+- Model：explores と connections の集合。
+- Explore：エンドユーザーがクエリ可能なビュー。
+- View：テーブルまたはderived tableへのマッピング。
+- Derived table：事前計算のためのSQL定義テーブル（PDT/DT）。
+- Dashboard：explores上に保存された可視化。
 
-## Common Patterns
-- Build LookML on curated tables from [[Storage/BigQuery|BigQuery]].
-- Use derived tables for heavy transforms that are expensive at query time.
-- Enforce row-level security based on user attributes.
-- Version control LookML for review and rollback.
+## よくあるパターン
+- [[Storage/BigQuery|BigQuery]] のキュレート済みテーブル上にLookMLを構築する。
+- クエリ時に高コストな重い変換は、derived tablesで事前計算する。
+- ユーザー属性に基づいて行レベルセキュリティを強制する。
+- LookMLをバージョン管理し、レビュー/ロールバック可能にする。
 
-## Integrations
+## 連携
 - [[Storage/BigQuery|BigQuery]]: primary warehouse backend.
 - [[Cloud-Storage|Cloud Storage]]: data lake staging feeding BigQuery.
 - [[Governance/Dataplex|Dataplex]]: governance and metadata alignment.
 - [[Security/IAM|IAM]]: access control foundation for connections and users.
 
-## Security And Access Control
-- Use least-privilege connections to the warehouse.
-- Align Looker permissions with [[Security/IAM|IAM]] groups.
-- Apply row/column security in LookML to enforce data policies.
+## セキュリティとアクセス制御
+- ウェアハウス接続は最小権限にする。
+- Looker権限を [[Security/IAM|IAM]] グループと整合させる。
+- LookMLで行/列セキュリティを適用し、データポリシーを強制する。
 
-## Operations And Reliability
-- Monitor dashboard load times and query costs in BigQuery.
-- Use caching strategically; document freshness expectations.
-- Keep LookML changes reviewed to avoid breaking downstream reports.
+## 運用と信頼性
+- BigQuery側でダッシュボードのロード時間とクエリコストを監視する。
+- キャッシュを戦略的に使い、鮮度期待を文書化する。
+- 下流レポート破壊を避けるため、LookML変更はレビューを通す。
 
-## Common Pitfalls
-- Modeling on raw tables instead of curated datasets.
-- Duplicating metric logic across explores.
-- Ignoring query costs and cache invalidation behavior.
+## よくある落とし穴
+- キュレート済みではなくrawテーブル上でモデリングする。
+- explore間でメトリクスロジックを重複させる。
+- クエリコストとキャッシュ無効化の挙動を無視する。
 
-## Quick Checklist
-- Define core metrics and dimensions in LookML.
-- Point explores at curated BigQuery tables.
-- Set row-level security rules and test access.
-- Establish review and deployment workflow for LookML.
-- Document ownership and data freshness expectations.
+## クイックチェックリスト
+- LookMLでコアメトリクス/ディメンションを定義する。
+- exploreの参照先をキュレート済みBigQueryテーブルにする。
+- 行レベルセキュリティルールを設定し、アクセスをテストする。
+- LookMLのレビュー/デプロイ手順を整備する。
+- オーナーとデータ鮮度期待を文書化する。

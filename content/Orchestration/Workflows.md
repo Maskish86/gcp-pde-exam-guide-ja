@@ -1,70 +1,70 @@
 # Workflows
 
-Workflows is GCP's serverless orchestration service for coordinating APIs and cloud services. It executes YAML/JSON-defined steps with retries, conditionals, and parallel branches, without managing servers.
+Workflows は、APIとクラウドサービスを調整するためのGCPサーバレスオーケストレーションサービスである。サーバ管理なしに、YAML/JSONで定義したステップをリトライ、条件分岐、並列分岐つきで実行する。
 
-## Use Cases
-- Orchestrate lightweight pipelines across managed services.
-- Glue together APIs for ingestion, validation, and notifications.
-- Run event-driven flows triggered by Pub/Sub or HTTP.
-- Replace simple scripts with auditable, managed workflows.
+## ユースケース
+- マネージドサービスをまたぐ軽量パイプラインをオーケストレーションする。
+- 取り込み、検証、通知のためにAPIをつなぐ。
+- Pub/Sub やHTTPでトリガーされるイベント駆動フローを実行する。
+- シンプルなスクリプトを、監査可能なマネージドワークフローに置き換える。
 
-## Mental Model
-- Each step calls an API, runs logic, or waits; state is managed for you.
-- Workflows is orchestration, not compute-heavy processing.
-- Retries and error handling are defined at the step or workflow level.
-- Long-running logic should be offloaded to services like [[Processing/Dataflow|Dataflow]].
+## メンタルモデル
+- 各ステップはAPI呼び出し、ロジック実行、待機を行い、状態はWorkflowsが管理する。
+- Workflowsはオーケストレーションであり、重い計算処理ではない。
+- リトライとエラーハンドリングは、ステップ単位またはワークフロー単位で定義する。
+- 長時間/重い処理は [[Processing/Dataflow|Dataflow]] などへオフロードする。
 
-## Core Concepts
-- Workflow: the definition and deployment unit.
-- Step: a single action (call, assign, switch, try/catch).
-- Execution: a single run of a workflow.
-- Connector: built-in integration for GCP APIs.
+## コア概念
+- Workflow：定義とデプロイの単位。
+- Step：単一のアクション（call、assign、switch、try/catch）。
+- Execution：ワークフローの1回の実行。
+- Connector：GCP API向けの組み込み連携。
 
-## Common Patterns
-- Call Cloud Storage -> validate -> trigger BigQuery load.
-- Fan out parallel API calls, then aggregate results.
-- Retry transient failures with exponential backoff.
-- Use subworkflows for shared logic.
+## よくあるパターン
+- Cloud Storageを呼ぶ → 検証 → BigQueryロードを起動する。
+- API呼び出しを並列ファンアウトし、結果を集約する。
+- 一時障害は指数バックオフ付きでリトライする。
+- 共通ロジックはsubworkflowsに切り出す。
 
-## Offloading Complex Logic (Cloud Run)
-- Use Cloud Run (or Cloud Functions) for complex business logic that exceeds the Workflows standard library.
-- Small API payloads are a good fit; Workflows orchestrates, Cloud Run computes.
-- Fully managed runtimes with fast startup and automatic scaling keep the solution simple.
-- Choose Cloud Run for stateless HTTP compute; prefer GKE only if you need cluster-level control or custom runtimes.
+## 複雑ロジックのオフロード（Cloud Run）
+- Workflowsの標準ライブラリを超える複雑な業務ロジックは、Cloud Run（またはCloud Functions）で実装する。
+- 小さなAPIペイロードが適する。Workflowsがオーケストレーションし、Cloud Runが計算する。
+- 速い起動と自動スケールのフルマネージド実行環境により、解をシンプルに保てる。
+- ステートレスなHTTPコンピュートにはCloud Runを選ぶ。クラスタレベルの制御やカスタムランタイムが必要な場合のみGKEを優先する。
 
-## Integrations
-- [[Cloud-Storage|Cloud Storage]]: trigger or validate file availability.
-- [[Storage/BigQuery|BigQuery]]: start jobs and check results.
-- [[Processing/Dataflow|Dataflow]]: launch batch/streaming jobs.
-- [[Ingestion/PubSub|Pub/Sub]]: event triggers and notifications.
-- [[Secret-Manager|Secret Manager]]: store API keys and tokens.
+## 連携
+- [[Cloud-Storage|Cloud Storage]]: ファイル可用性のトリガー/検証。
+- [[Storage/BigQuery|BigQuery]]: ジョブの開始と結果確認。
+- [[Processing/Dataflow|Dataflow]]: バッチ/ストリーミングジョブの起動。
+- [[Ingestion/PubSub|Pub/Sub]]: イベントトリガーと通知。
+- [[Secret-Manager|Secret Manager]]: APIキーとトークンの保管。
 
-## Exam Decision: Workflows vs Composer vs Cloud Run
-| Requirement signal | Choose | Reject | Why rejected (distractor elimination) |
+## 試験の判断：Workflows vs Composer vs Cloud Run
+| 要件シグナル | 選ぶ | 却下 | 却下理由（ディストラクタ排除） |
 |---|---|---|---|
-| Lightweight API orchestration (retries/branches/parallel calls) | Workflows | Cloud Composer | Composer is heavier-weight; don’t pick it if you don’t need DAG scheduling/backfills. |
-| Scheduling + backfills + many dependencies across jobs | Cloud Composer | Workflows | Workflows is great for glue, but it’s not the “Airflow-style” scheduler/backfill tool. |
-| Custom compute/business logic behind HTTP | Cloud Run | Workflows | Workflows is not a general compute runtime; use it to orchestrate, not to run heavy logic. |
+| 軽量なAPIオーケストレーション（リトライ/分岐/並列呼び出し） | Workflows | Cloud Composer | Composerは重い。DAGスケジューリング/バックフィルが不要なら選ばない。 |
+| スケジューリング + バックフィル + ジョブ間の多数依存 | Cloud Composer | Workflows | Workflowsは「つなぎ」に強いが、Airflow風のスケジューラ/バックフィル運用ツールではない。 |
+| HTTPの背後にあるカスタム計算/業務ロジック | Cloud Run | Workflows | Workflowsは汎用コンピュート実行環境ではない。重いロジックではなく、調整に使う。 |
 
-## Security And Access Control
-- Use least-privilege [[Security/IAM|IAM]] roles for the workflow service account.
-- Avoid embedding secrets in workflow definitions; use [[Secret-Manager|Secret Manager]].
-- Prefer private connectivity when calling internal services.
+## セキュリティとアクセス制御
+- ワークフローのサービスアカウントには最小権限の [[Security/IAM|IAM]] ロールを付与する。
+- ワークフロー定義にシークレットを埋め込まず、[[Secret-Manager|Secret Manager]] を使う。
+- 内部サービス呼び出しではプライベート接続を優先する。
 
-## Operations And Reliability
-- Use structured logging and include correlation IDs.
-- Monitor executions and set alerts for failure rates.
-- Keep workflows small and composable for maintainability.
+## 運用と信頼性
+- 構造化ログを使い、correlation IDを含める。
+- 実行（execution）を監視し、失敗率にアラートを設定する。
+- 保守性のため、ワークフローを小さく分割して合成可能に保つ。
 
-## Common Pitfalls
-- Putting heavy compute inside the workflow instead of a dedicated service.
-- Ignoring idempotency, leading to duplicate actions on retry.
-- Hardcoding endpoints instead of using configuration.
-- Treating `kubectl scale` as autoscaling (use HPA or Cloud Run autoscale).
+## よくある落とし穴
+- 専用サービスにオフロードせず、ワークフロー内で重い計算を行う。
+- 冪等性を無視し、リトライで重複アクションが発生する。
+- 設定を使わずにエンドポイントをハードコードする。
+- `kubectl scale` をオートスケールと誤解する（HPAまたはCloud Run autoscaleを使う）。
 
-## Quick Checklist
-- Define inputs and outputs clearly.
-- Add retries and timeout handling for external calls.
-- Store secrets in [[Secret-Manager|Secret Manager]].
-- Add logging for key steps and errors.
-- Monitor with [[Cloud-Monitoring|Cloud Monitoring]] and [[Cloud-Logging|Cloud Logging]].
+## クイックチェックリスト
+- 入出力を明確に定義する。
+- 外部呼び出しにリトライとタイムアウト処理を追加する。
+- シークレットを [[Secret-Manager|Secret Manager]] に保存する。
+- 重要ステップとエラーにログを追加する。
+- [[Cloud-Monitoring|Cloud Monitoring]] と [[Cloud-Logging|Cloud Logging]] で監視する。

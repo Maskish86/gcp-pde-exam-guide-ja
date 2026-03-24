@@ -1,55 +1,55 @@
 # AlloyDB
 
-AlloyDB is GCP's managed, PostgreSQL-compatible database optimized for high performance and analytics-friendly workloads. It is designed for operational workloads that need better throughput and lower latency than standard PostgreSQL, while remaining compatible with PostgreSQL tools and drivers.
+AlloyDB は、PostgreSQL互換で高性能に最適化された、GCPのマネージド データベースである。標準的なPostgreSQLより高いスループットと低レイテンシを必要とする運用ワークロードを対象にしつつ、PostgreSQLのツール/ドライバ互換を維持する。
 
-## Use Cases
-- OLTP systems that need high read/write throughput.
-- Choose **AlloyDB over Cloud SQL for PostgreSQL** when you need **higher throughput** or **HTAP** (mixed OLTP + analytics) without re‑platforming.
-- Hybrid workloads with frequent analytics queries on operational data.
-- Applications that want PostgreSQL compatibility with managed scaling.
-- Source system for CDC into analytics (via [[Ingestion/Datastream|Datastream]]).
+## ユースケース
+- 高い読み取り/書き込みスループットが必要なOLTPシステム。
+- 再プラットフォームなしで **より高いスループット** または **HTAP**（混在: OLTP + analytics）が必要なら、**Cloud SQL for PostgreSQL より AlloyDB** を選ぶ。
+- 運用データに対して分析クエリが頻繁に走るハイブリッドワークロード。
+- マネージドでスケールしつつPostgreSQL互換を求めるアプリケーション。
+- 分析基盤へのCDCソース（[[Ingestion/Datastream|Datastream]] 経由）。
 
-## Mental Model
-- PostgreSQL-compatible engine with separated compute and storage.
-- **HTAP = OLTP + analytics in one system** (row engine + columnar accelerator), reducing ETL/dual‑store complexity.
-- Primary + read pool for scaling reads and analytics queries.
-- Storage is distributed and managed; compute can scale independently.
-- Compatible with most PostgreSQL extensions and drivers.
+## メンタルモデル
+- 計算とストレージを分離した、PostgreSQL互換エンジン。
+- **HTAP = OLTP + analytics を1つのシステムで**（row engine + columnar accelerator）: ETL/二重ストアの複雑性を減らす。
+- Primary + read pool により、読み取りと分析クエリをスケールする。
+- ストレージは分散かつマネージドで、コンピュートは独立にスケールできる。
+- 多くのPostgreSQL拡張とドライバに互換。
 
-## Core Concepts
-- Cluster: primary instance plus optional read pool.
-- Primary: handles writes and transactions.
-- Read pool: read-only nodes for scaling queries.
-- Backups: automated with point-in-time recovery.
+## コア概念
+- Cluster: primary インスタンス +（任意で）read pool。
+- Primary: 書き込みとトランザクションを処理する。
+- Read pool: 読み取り専用ノードでクエリをスケールする。
+- Backups: ポイントインタイムリカバリ（PITR）付きの自動バックアップ。
 
-## Performance And Scaling
-- Scale reads by adding read pool nodes.
-- Scale compute vertically for write-heavy workloads.
-- Keep hot data in memory; watch cache hit rates.
+## 性能とスケーリング
+- read poolノード追加で読み取りをスケールする。
+- 書き込みが重いワークロードはコンピュートを垂直スケールする。
+- ホットデータをメモリに載せ、キャッシュヒット率を監視する。
 
-## Availability And Reliability
-- High availability with automated failover.
-- Regional deployment; use replicas for resilience.
-- Backups and PITR for recovery.
+## 可用性と信頼性
+- 自動フェイルオーバーを伴う高可用性。
+- リージョンデプロイ。必要に応じてレプリカで耐障害性を高める。
+- 障害復旧にはバックアップとPITRを使う。
 
-## Security And Access Control
-- IAM for resource access and management.
-- Use private IP for internal access where possible.
-- CMEK supported via [[Cloud-KMS|Cloud KMS]] for encryption control.
+## セキュリティとアクセス制御
+- リソースアクセス/管理にはIAMを使う。
+- 可能なら内部アクセスにprivate IPを使う。
+- 暗号化制御のため、[[Cloud-KMS|Cloud KMS]] によるCMEKをサポートする。
 
-## Common Pitfalls
-- Treating it like a warehouse; it is still an OLTP database.
-- Under-sizing primary compute for write-heavy workloads.
-- Not separating analytical reads to a read pool.
+## よくある落とし穴
+- ウェアハウスのように扱う — 依然としてOLTPデータベースである。
+- 書き込みが重いのにprimaryのコンピュートを過小サイジングする。
+- 分析/読み取りをread poolへ分離しない。
 
-## Integrations
-- [[Ingestion/Datastream|Datastream]]: CDC from AlloyDB into analytics.
-- [[Processing/Dataflow|Dataflow]]: ETL from AlloyDB to [[Storage/BigQuery|BigQuery]].
-- [[Security/IAM|IAM]] and [[Cloud-KMS|Cloud KMS]]: access and encryption controls.
+## 連携
+- [[Ingestion/Datastream|Datastream]]: AlloyDBから分析基盤へのCDC。
+- [[Processing/Dataflow|Dataflow]]: AlloyDBから [[Storage/BigQuery|BigQuery]] へのETL。
+- [[Security/IAM|IAM]] と [[Cloud-KMS|Cloud KMS]]: アクセス/暗号化制御。
 
-## Quick Checklist
-- Decide primary size and read pool count.
-- Choose private IP or secure connectivity.
-- Configure backups and test PITR.
-- Set IAM and CMEK if required.
-- Plan CDC if analytics replication is needed.
+## クイックチェックリスト
+- primaryのサイズとread pool数を決める。
+- private IP（またはセキュアな接続方式）を選ぶ。
+- バックアップを構成し、PITRを復元テストする。
+- 要件があればIAMとCMEKを設定する。
+- 分析レプリケーションが必要ならCDCを計画する。

@@ -1,83 +1,83 @@
 # Spanner
 
-Spanner is GCP's globally distributed relational database with strong consistency at scale. It offers horizontal scaling, high availability, and multi-region replication for mission-critical OLTP workloads.
+Spanner は、強整合を保ちながらスケールする、GCPのグローバル分散リレーショナルデータベースである。ミッションクリティカルなOLTP向けに、水平スケール、高可用性、マルチリージョン複製を提供する。
 
-## Use Cases
-- Global applications that need strong consistency across regions.
-- OLTP systems that outgrow single-region databases.
-- Large-scale transactional workloads with high availability requirements.
-- Source system for CDC into analytics (via [[Ingestion/Datastream|Datastream]]).
+## ユースケース
+- リージョンをまたいで強整合が必要なグローバルアプリケーション。
+- 単一リージョンDBのスケール限界を超えるOLTPシステム。
+- 高可用性要件を持つ大規模トランザクションワークロード。
+- 分析向けCDCのソース（[[Ingestion/Datastream|Datastream]] 経由）。
 
-## Mental Model
-- Spanner scales horizontally via shards (splits).
-- TrueTime provides globally synchronized timestamps for strong consistency.
-- Multi-region configs provide low-latency reads and high availability.
-- SQL schema with relational model, but with distributed design constraints.
+## メンタルモデル
+- Spanner は shard（split）で水平スケールする。
+- TrueTime がグローバル同期されたタイムスタンプを提供し、強整合を実現する。
+- マルチリージョン構成は低レイテンシ読み取りと高可用性を提供する。
+- リレーショナルなSQLスキーマだが、分散設計の制約がある。
 
-## Core Concepts
-- Instance: capacity allocation for databases.
-- Database: schema and data stored in Spanner.
-- Nodes/Processing Units: compute capacity for workload.
-- Splits: key-range partitions managed by Spanner.
-- TrueTime: time API enabling global consistency.
+## コア概念
+- Instance：データベースに対するキャパシティ割り当て。
+- Database：Spannerに格納されるスキーマとデータ。
+- Nodes/Processing Units：ワークロードの計算キャパシティ。
+- Splits：Spannerが管理するキー範囲パーティション。
+- TrueTime：グローバル整合を可能にするtime API。
 
-## Data Modeling Considerations
-- Primary keys define data locality and performance.
-- Avoid hot keys; distribute writes across key ranges.
-- Use interleaved tables to co-locate related data.
+## データモデリングの考慮点
+- 主キーがデータローカリティと性能を決める。
+- hot key を避け、書き込みをキー範囲へ分散させる。
+- 関連データは interleaved tables で同一ロケーションへ配置する。
 
-## Hot-Spotting Key Point
-- Hot-spotting occurs when the leading primary key is sequential (or time-ordered), so most new writes hit the same split.
-- Key design goal: make the leading key component well-distributed across key ranges.
+## ホットスポットの要点
+- 主キー先頭が連番（または時間順）の場合、新規書き込みの大半が同一splitに集中し、ホットスポットになる。
+- キー設計の目標：主キー先頭の要素を、キー範囲に均等に分布させる。
 
 | Key Pattern                           | Choose When                             | Why It Works                             | Why the Wrong Choice Fails                                       |
 | ------------------------------------- | --------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------- |
 | `PRIMARY KEY (hash_user_id, user_id)` | High write rate by entity id            | Hash prefix spreads writes across splits | `PRIMARY KEY (user_id)` or sequential ids can concentrate writes |
 | `PRIMARY KEY (bit_reversed_id)`       | Need sequence-like ids without hotspots | Bit reversal scatters sequential inserts | Plain increasing sequence keeps appending to a hot split         |
 
-- Common trap: using timestamp/auto-increment as the first key column in heavy-ingest tables.
+- よくある罠：高頻度取り込みテーブルで、先頭キー列にtimestamp/auto-incrementを置く。
 
 **Interleaved tables:**
 
 | Option | Use When | Why |
 | --- | --- | --- |
-| Interleaved child table | Child rows are usually read with parent rows | Co-locates child rows by parent key prefix, reducing cross-split joins |
-| Non-interleaved child table | Parent and child are queried independently | More flexible, but parent-child joins can be distributed and slower |
+| Interleaved child table | 子行を親行と一緒に読むことが多い | 親キー接頭辞で子行を同居させ、cross-split joinを減らす |
+| Non-interleaved child table | 親と子を独立にクエリする | 柔軟だが、親子joinが分散して遅くなりうる |
 
 - Rule: child primary key must start with the full parent primary key.
 ```sql
 INTERLEAVE IN PARENT Orders ON DELETE CASCADE
 ```
-## Performance And Scaling
-- Add nodes for throughput and storage growth.
-- Use read-only transactions and stale reads for lower latency when acceptable.
-- Monitor splits and hotspots to guide key design.
+## 性能とスケーリング
+- スループットとストレージ増に応じてnodeを追加する。
+- 許容できるなら、read-only transactions と stale reads を使ってレイテンシを下げる。
+- split とホットスポットを監視し、キー設計にフィードバックする。
 
-## Availability And Consistency
-- Strong consistency by default for reads and writes.
-- Multi-region configurations for high availability.
-- Regional configurations when low-latency single-region is enough.
+## 可用性と整合性
+- 読み書きは既定で強整合。
+- 高可用性にはマルチリージョン構成。
+- 単一リージョンの低レイテンシで十分ならリージョン構成。
 
-## Security And Access Control
-- IAM for instance and database access.
-- CMEK supported via [[Cloud-KMS|Cloud KMS]] if required.
+## セキュリティとアクセス制御
+- instance/database アクセスにはIAMを使う。
+- 必要なら [[Cloud-KMS|Cloud KMS]] 経由でCMEKを使える。
 
-## Common Pitfalls
-- Sequential or timestamp-based leading primary key — all new writes concentrate on the same split, creating a hotspot; use a hash prefix, bit-reversed ID, or any well-distributed leading key component.
-- Assuming Spanner is a drop-in for single-node SQL — distributed design imposes constraints: no arbitrary cross-table joins, no native auto-increment sequences, and transactions carry latency cost; schema and query patterns must be redesigned.
-- Under-provisioning for peak write traffic — splits take time to rebalance after scale-up; provision for peak load in advance and monitor hotspot metrics proactively.
-- Using read-write transactions for read-only queries — read-write transactions acquire locks and add unnecessary latency; use read-only transactions or stale reads for queries that don't require the latest committed state.
-- Running OLAP queries directly on Spanner — full-table scans and aggregations compete with OLTP traffic and spike latency; export to [[Storage/BigQuery|BigQuery]] via [[Ingestion/Datastream|Datastream]] or [[Processing/Dataflow|Dataflow]] for analytics workloads.
-- Choosing multi-region when single-region suffices — multi-region configs provide global HA but cost significantly more; only choose multi-region when cross-region availability or global read latency is a hard requirement.
+## よくある落とし穴
+- 先頭主キーが連番/タイムスタンプ — 新規書き込みが同一splitに集中してホットスポットになる。hash prefix、bit-reversed ID、または先頭キー要素を均等分布させる。
+- Spannerを単一ノードSQLの差し替えと誤解する — 分散設計の制約がある（任意のクロステーブルjoin不可、ネイティブauto-incrementシーケンスなし、トランザクションにレイテンシコスト）。スキーマとクエリパターンを再設計する。
+- ピーク書き込みを過小プロビジョニングする — スケールアップ後のsplit再平衡には時間がかかる。ピークを見越して事前に確保し、ホットスポット指標を能動的に監視する。
+- 読み取り専用クエリにread-writeトランザクションを使う — ロック取得で不要なレイテンシが増える。最新コミットが不要ならread-onlyトランザクションやstale readsを使う。
+- OLAPクエリをSpannerに直接投げる — フルスキャン/集計がOLTPと競合し、レイテンシを悪化させる。分析は [[Ingestion/Datastream|Datastream]] または [[Processing/Dataflow|Dataflow]] 経由で [[Storage/BigQuery|BigQuery]] へ逃がす。
+- 単一リージョンで足りるのにマルチリージョンを選ぶ — マルチリージョンはグローバルHAを提供するがコストが大きい。リージョン間可用性やグローバル読み取りレイテンシがハード要件のときのみ選ぶ。
 
-## Integrations
-- [[Ingestion/Datastream|Datastream]]: CDC from Spanner to analytics.
-- [[Processing/Dataflow|Dataflow]]: ETL to [[Storage/BigQuery|BigQuery]] or [[Cloud-Storage|Cloud Storage]].
-- [[Security/IAM|IAM]] and [[Cloud-KMS|Cloud KMS]]: access and encryption controls.
+## 連携
+- [[Ingestion/Datastream|Datastream]]: Spannerから分析基盤へのCDC。
+- [[Processing/Dataflow|Dataflow]]: [[Storage/BigQuery|BigQuery]] または [[Cloud-Storage|Cloud Storage]] へのETL。
+- [[Security/IAM|IAM]] と [[Cloud-KMS|Cloud KMS]]: アクセス/暗号化制御。
 
-## Quick Checklist
-- Choose region or multi-region based on latency and HA needs.
-- Design primary keys for write distribution.
-- Size nodes/processing units for workload.
-- Configure backups and monitoring.
-- Plan CDC if analytics replication is needed.
+## クイックチェックリスト
+- レイテンシとHA要件で、リージョン/マルチリージョンを選ぶ。
+- 書き込み分散のために主キーを設計する。
+- ワークロードに合わせてnodes/processing unitsをサイジングする。
+- バックアップと監視を構成する。
+- 分析レプリケーションが必要ならCDCを計画する。

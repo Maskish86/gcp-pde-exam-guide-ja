@@ -1,59 +1,60 @@
 # Dataform
 
-Dataform is a data transformation framework for [[Storage/BigQuery|BigQuery]]. It lets you define SQL-based pipelines, manage dependencies, and run incremental builds with version control.
+Dataform は、[[Storage/BigQuery|BigQuery]] 向けのデータ変換フレームワークである。SQLベースのパイプライン定義、依存関係管理、バージョン管理下での増分ビルド実行を可能にする。
 
-## Use Cases
-- Build curated datasets from raw/staging tables.
-- Manage SQL transformations with dependency graphs.
-- Implement incremental models with repeatable runs.
-- Share reusable data models with governed practices.
+## ユースケース
+- raw/staging テーブルからキュレート済みデータセットを構築する。
+- 依存関係グラフでSQL変換を管理する。
+- 反復実行可能な増分モデルを実装する。
+- ガバナンスされた運用で再利用可能なデータモデルを共有する。
 
-## Mental Model
-- Dataform compiles SQL into a DAG of operations.
-- Runs are orchestration of SQL in BigQuery, not separate compute.
-- Incremental tables avoid full rebuilds when designed correctly.
-- Environments (dev/prod) should separate datasets and permissions.
+## メンタルモデル
+- Dataform はSQLをコンパイルし、操作のDAGとして扱う。
+- run はBigQuery上のSQL実行のオーケストレーションであり、別コンピュートではない。
+- 増分テーブルは、正しく設計すればフルリビルドを避けられる。
+- 環境（dev/prod）はデータセットと権限を分離すべき。
 
-## Core Concepts
-- Project: a collection of models and configs.
-- Model: a SQL transformation (table, view, incremental).
-- Assertions: data quality checks (uniqueness, nulls, constraints).
-- Dependencies: explicit refs between models.
-- Runs: execution of a compiled graph in BigQuery.
+## コア概念
+- Project：モデルと設定の集合。
+- Model：SQL変換（table/view/incremental）。
+- Assertions：データ品質チェック（一意性、NULL、制約）。
+- Dependencies：モデル間の明示的な参照。
+- Runs：BigQuery上でコンパイル済みグラフを実行すること。
 
-## Common Patterns
-- Raw -> staging -> curated layering with clear naming.
-- Incremental models using `uniqueKey` and `updatePartitionFilter`.
-- Assertions for critical business rules and freshness.
-- Version control with pull requests and code review.
+## よくあるパターン
+- 明確な命名による Raw -> staging -> curated のレイヤリング。
+- `uniqueKey` と `updatePartitionFilter` を使った増分モデル。
+- 重要な業務ルールと鮮度に対するAssertions。
+- pull request とコードレビューによるバージョン管理。
 
-## Assertions For Uniqueness And Nulls
-- Use built-in assertions (`uniqueKey`, `nonNull`, or custom) for data quality checks.
-- Assertions run as part of the Dataform pipeline and fail the run on violations.
-- This is the most efficient, native approach compared to external DQ tools or manual UDF checks.
-## Integrations
-- [[Storage/BigQuery|BigQuery]]: execution engine and storage.
-- [[../Security/IAM|IAM]]: permissions for service accounts and users.
-- [[Cloud-Composer|Cloud-Composer]] or [[../Orchestration/Workflows|Workflows]]: schedule and trigger runs.
+## 一意性とNULLのAssertions
+- データ品質チェックには、組み込みAssertions（`uniqueKey`、`nonNull`、またはカスタム）を使う。
+- Assertions はDataformパイプラインの一部として実行され、違反があるとrunを失敗させる。
+- 外部DQツールや手動UDFチェックと比べて、最も効率的でネイティブなアプローチである。
 
-## Security And Access Control
-- Use least-privilege [[../Security/IAM|IAM]] for Dataform service accounts.
-- Separate dev/prod datasets to prevent accidental writes.
-- Avoid embedding secrets; use managed connections where possible.
+## 連携
+- [[Storage/BigQuery|BigQuery]]: 実行エンジン兼ストレージ。
+- [[../Security/IAM|IAM]]: サービスアカウント/ユーザーの権限。
+- [[Cloud-Composer|Cloud-Composer]] または [[../Orchestration/Workflows|Workflows]]: runのスケジュール/トリガー。
 
-## Operations And Reliability
-- Use incremental builds for large tables to control cost.
-- Monitor failures and set alerts on scheduled runs.
-- Keep SQL style consistent to improve maintainability.
+## セキュリティとアクセス制御
+- Dataformのサービスアカウントには最小権限の [[../Security/IAM|IAM]] を使う。
+- 誤書き込みを防ぐため、dev/prodのデータセットを分離する。
+- シークレットの埋め込みを避け、可能ならマネージド接続を使う。
 
-## Common Pitfalls
-- Using incremental models without a stable unique key.
-- Mixing environments in one dataset.
-- Ignoring assertions until after a failure.
+## 運用と信頼性
+- 大規模テーブルは増分ビルドでコストを制御する。
+- 失敗を監視し、スケジュール実行にアラートを設定する。
+- 保守性向上のため、SQLスタイルを一貫させる。
 
-## Quick Checklist
-- Define dataset naming conventions (raw/staging/curated).
-- Set up environments and permissions.
-- Add assertions for critical tables.
-- Implement incremental logic where appropriate.
-- Document run schedules and ownership.
+## よくある落とし穴
+- 安定した一意キーなしで増分モデルを使う。
+- 1つのデータセットに複数環境を混在させる。
+- 失敗するまでAssertionsを無視する。
+
+## クイックチェックリスト
+- データセットの命名規約（raw/staging/curated）を定義する。
+- 環境と権限を設定する。
+- 重要テーブルにAssertionsを追加する。
+- 必要に応じて増分ロジックを実装する。
+- runのスケジュールとオーナーを文書化する。

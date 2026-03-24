@@ -1,71 +1,71 @@
 # Cloud SQL
 
-Cloud SQL is GCP's managed relational database service for MySQL, PostgreSQL, and SQL Server. It handles provisioning, patching, backups, and high availability while you manage schemas, users, and queries.
+Cloud SQL は、MySQL、PostgreSQL、SQL Server 向けのGCPマネージド リレーショナルデータベースサービスである。プロビジョニング、パッチ適用、バックアップ、高可用性はGCPが担い、スキーマ/ユーザー/クエリは利用者が管理する。
 
-## Use Cases
-- Metadata stores and small relational apps that support pipelines.
-- Source systems for CDC into analytics (via [[Ingestion/Datastream|Datastream]]).
-- Reference/lookup tables for ETL jobs or feature pipelines.
+## ユースケース
+- パイプラインを支えるメタデータストアや小規模リレーショナルアプリ。
+- 分析向けCDCのソース（[[Ingestion/Datastream|Datastream]] 経由）。
+- ETLジョブや特徴量パイプライン向けの参照/ルックアップテーブル。
 
-## Mental Model
-- Google manages the database infrastructure; you manage database objects and access.
-- Storage is persistent; compute scales vertically per instance.
-- High availability uses a primary + standby with automated failover.
+## メンタルモデル
+- DBインフラはGoogleが管理し、DBオブジェクトとアクセスは利用者が管理する。
+- ストレージは永続で、コンピュートはインスタンス単位の垂直スケール。
+- 高可用性は primary + standby と自動フェイルオーバーで実現する。
 
-## Core Concepts
+## コア概念
 
-| Concept              | Description                                  |
+| 概念                 | 説明                                         |
 | -------------------- | -------------------------------------------- |
-| Instance             | The database server (region + machine type)  |
-| Database/user        | Logical database and credentials             |
-| Connectivity         | Private IP (VPC) or public IP                |
-| Authorized networks  | IP allowlist for public IP connections       |
-| Flags                | Engine-specific configuration                |
+| Instance             | DBサーバ（リージョン + マシンタイプ）         |
+| Database/user        | 論理データベースと認証情報                    |
+| Connectivity         | Private IP（VPC）またはPublic IP             |
+| Authorized networks  | Public IP接続のためのIP許可リスト             |
+| Flags                | エンジン固有の設定                            |
 
-## Connectivity And Security
+## 接続とセキュリティ
 
 **Private IP:**
-- Best for stable, internal networks (VPC and peering).
-- Avoids public exposure and IP allowlists.
+- 安定した内部ネットワーク（VPC/ピアリング）に最適。
+- パブリック露出とIP許可リストを回避できる。
 
 **Public IP:**
-- Use when clients are outside VPC or on the internet.
-- Requires strong auth and secure transport.
+- クライアントがVPC外/インターネット側にいる場合に使う。
+- 強固な認証とセキュアな通信が必要。
 
 **Auth Proxy / Connectors:**
-- Recommended for dynamic IP clients and production workloads.
-- App connects locally to the proxy → proxy authenticates via service account / Application Default Credentials → proxy opens a TLS-encrypted tunnel to Cloud SQL.
-- Handles TLS automatically — no manual SSL certificate management, no public IP exposure needed.
-- Uses short-lived OAuth2 tokens; Authorized networks can be left empty.
-- Avoid `0.0.0.0/0` allowlists for production.
+- 動的IPクライアントや本番ワークロードで推奨。
+- アプリがローカルのproxyへ接続 → proxyがサービスアカウント/Application Default Credentialsで認証 → proxyがCloud SQLへTLS暗号化トンネルを確立する。
+- TLSを自動で扱う（手動SSL証明書管理が不要、パブリックIP露出も不要）。
+- 短命のOAuth2トークンを使うため、Authorized networksは空にできる。
+- 本番で `0.0.0.0/0` の許可リストは避ける。
 
-> IAM (`roles/cloudsql.client`) controls *who* can connect, but does not establish the secure channel. The Auth Proxy handles the authentication flow, token exchange, and TLS — IAM and the proxy work together.
+> IAM（`roles/cloudsql.client`）は「誰が接続できるか」を制御するが、安全なチャネル自体は確立しない。Auth Proxyが認証フロー、トークン交換、TLSを担い、IAMとproxyは組み合わせて使う。
 
-## Backups And Recovery
-- Automated backups and point-in-time recovery.
-- Test restore procedures; keep retention aligned with compliance.
+## バックアップと復旧
+- 自動バックアップとポイントインタイムリカバリ。
+- 復元手順をテストし、保持期間をコンプライアンス要件に揃える。
 
-## Performance And Scaling
-- Right-size machine type and storage.
-- Use read replicas for read-heavy workloads.
-- Use connection pooling to avoid exhausting connections.
+## 性能とスケーリング
+- マシンタイプとストレージを適正サイジングする。
+- 読み取りが重いワークロードには read replicas を使う。
+- 接続枯渇を避けるため、コネクションプーリングを使う。
 
-## Common Pitfalls
-- Using public IP allowlists for dynamic clients — IPs change and allowlists break silently; use Auth Proxy or Cloud SQL Connector instead.
-- Confusing HA standby with a read replica — the standby handles failover only, it does not serve reads; add a read replica for read scaling.
-- Connection exhaustion from serverless workloads — Cloud Run/Functions can spawn hundreds of connections per cold-start burst; use connection pooling (PgBouncer for PostgreSQL, or Auth Proxy pool settings).
-- Storage auto-increase is irreversible — the disk grows automatically but cannot shrink; oversized instances require creating a new instance and migrating data.
-- Skipping backup restore tests — automated backups run on schedule, but PITR paths and restore procedures are rarely validated until an incident.
-- Missing Datastream prerequisites for CDC — MySQL requires binary logging enabled; PostgreSQL requires `wal_level=logical`; forgetting these flags blocks Datastream setup entirely.
+## よくある落とし穴
+- 動的クライアントにpublic IPの許可リストを使う — IPが変わり、許可リストが静かに破綻する。代わりに Auth Proxy または Cloud SQL Connector を使う。
+- HA standby を read replica と混同する — standbyはフェイルオーバー専用で、読み取りは提供しない。読み取りスケールには read replica を追加する。
+- サーバレス起因の接続枯渇 — Cloud Run/Functions はコールドスタートで大量接続を生成しうる。コネクションプーリング（PostgreSQLはPgBouncer、またはAuth Proxyのプール設定）を使う。
+- ストレージ自動増加は不可逆 — ディスクは自動的に増えるが縮められない。過大なインスタンスは新規作成してデータ移行が必要。
+- バックアップ復元テストを省く — 自動バックアップは動いていても、PITR経路や復元手順は障害時まで検証されないことが多い。
+- CDC向けDatastream前提条件の不足 — MySQLはbinary logging有効化が必要、PostgreSQLは `wal_level=logical` が必要。これを忘れるとDatastream設定が進まない。
 
-## Integrations
+## 連携
 - [[Ingestion/Datastream|Datastream]]: CDC from Cloud SQL into analytics.
 - [[Processing/Dataflow|Dataflow]]: ETL and enrichment.
 - [[Security/IAM|IAM]]: IAM roles for proxy/connectors.
 
-## Quick Checklist
-- Decide private vs public IP connectivity.
-- Use Auth proxy/connector for dynamic IP clients.
-- Grant least-privilege IAM and database users.
-- Configure backups and test restore.
-- Enable monitoring and alerts.
+## クイックチェックリスト
+- Private IP / Public IP のどちらで接続するか決める。
+- 動的IPクライアントには Auth Proxy/Connector を使う。
+- 最小権限IAMとDBユーザーを付与する。
+- バックアップを構成し、復元テストを行う。
+- 監視とアラートを有効化する。

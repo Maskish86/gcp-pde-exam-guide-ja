@@ -1,204 +1,168 @@
-# GCP Data Engineer 
+# GCP データエンジニア
 
-Use this page as an index for what to learn and what to practice. The goal is not memorizing services; it is being able to design, build, operate, and secure data pipelines on GCP.
+このページは、学ぶ内容と練習内容のインデックスとして使う。目的はサービスの暗記ではなく、GCP上でデータパイプラインを設計・構築・運用・保護できるようになること。
 
-## Outcomes (What "Good" Looks Like)
-- Build batch pipelines (files -> warehouse) and streaming pipelines (events -> warehouse/serving).
-- Design for reliability: idempotency, retries, backfills/replays, late data handling.
-- Control cost: storage lifecycle, query bytes scanned, right-sizing compute, workload separation.
-- Govern access: least-privilege [[Security/IAM|IAM]], sensitive data handling, auditing, and metadata.
+## 到達目標
+- バッチパイプライン（files -> warehouse）とストリーミングパイプライン（events -> warehouse/serving）を構築できる。
+- 信頼性を前提に設計できる：冪等性、リトライ、バックフィル／リプレイ、遅延データの扱い。
+- コストを制御できる：ストレージのライフサイクル、クエリのスキャンバイト、コンピュートの適正サイジング、ワークロード分離。
+- アクセスを統制できる：最小権限の [[Security/IAM|IAM]]、機微データの取り扱い、監査、メタデータ。
 
-## Suggested Study Order
-1) Foundations (GCP resource model + data fundamentals)
-2) Storage + warehouse ([[Cloud-Storage|GCS]] + [[Storage/BigQuery|BigQuery]])
-3) Batch ingestion + ELT (load -> transform -> publish)
-4) Streaming ingestion + processing ([[Ingestion/PubSub|Pub/Sub]] -> [[Processing/Dataflow|Dataflow]] -> sinks)
-5) Orchestration + operations + governance (make it production-grade)
+## 推奨学習順
+1) 基礎（GCPリソースモデル + データ基礎）
+2) ストレージ + ウェアハウス（[[Cloud-Storage|GCS]] + [[Storage/BigQuery|BigQuery]]）
+3) バッチ取り込み + ELT（load -> transform -> publish）
+4) ストリーミング取り込み + 処理（[[Ingestion/PubSub|Pub/Sub]] -> [[Processing/Dataflow|Dataflow]] -> sinks）
+5) オーケストレーション + 運用 + ガバナンス（本番運用できる形にする）
 
-## Reference Architectures (Mental Models)
+## 参照アーキテクチャ（メンタルモデル）
 
 ```mermaid
 flowchart TB
 
 subgraph S["📡 Sources"]
-    A1[Applications / Logs]
-    A2[Operational DB]
-    A3[External Files]
+    A1[アプリケーション / ログ]
+    A2[運用DB]
+    A3[外部ファイル]
 end
 
-subgraph I["🚚 Ingestion"]
+subgraph I["🚚 取り込み（Ingestion）"]
     B1[Pub/Sub]
     B2[Cloud Storage]
     B3[Datastream]
 end
 
-subgraph P["⚙️ Processing"]
+subgraph P["⚙️ 処理"]
     C1[Dataflow]
 end
 
-subgraph W["💾 BigQuery Warehouse"]
+subgraph W["💾 BigQueryウェアハウス"]
     direction LR
-    D1[Raw]
+    D1[生データ]
     C2[Dataform]
-    D2[Staging]
-    D3[Curated / Mart]
+    D2[ステージング]
+    D3[キュレート / マート]
 end
 
-subgraph SV["⚡ Serving"]
+subgraph SV["⚡ サービング"]
     E1[Bigtable]
 end
 
-subgraph CO["📊 Consumption"]
+subgraph CO["📊 利用"]
     F1[Looker / BI]
-    F2[Apps / APIs]
+    F2[アプリ / API]
 end
 
-subgraph OR["🎼 Orchestration"]
+subgraph OR["🎼 オーケストレーション"]
     O1[Composer / Workflows]
 end
 
 %% Sources → Ingestion
-A1 -->|events| B1
-A2 -->|CDC| B3
-A3 -->|files| B2
+A1 -->|イベント| B1
+A2 -->|変更データキャプチャ（CDC）| B3
+A3 -->|ファイル| B2
 
 %% Ingestion → Processing & Storage
-B1 -->|stream| C1
-B2 -->|batch| C1
-B2 -->|load job| D1
-B3 -->|replication| D1
+B1 -->|ストリーム| C1
+B2 -->|バッチ| C1
+B2 -->|ロードジョブ| D1
+B3 -->|レプリケーション| D1
 
 %% Processing → Storage & Serving
-C1 -->|stream write| D1
-C1 -->|low-latency write| E1
+C1 -->|ストリーミング書き込み| D1
+C1 -->|低レイテンシ書き込み| E1
 
 %% BigQuery ELT layers
-D1 -->|ELT input| C2
-C2 -->|SQL transforms| D2
-D2 -->|promote| D3
+D1 -->|ELT入力| C2
+C2 -->|SQL変換処理| D2
+D2 -->|昇格（本番反映）| D3
 
 %% Consumption
-D3 -->|analytics| F1
-E1 -->|serving| F2
+D3 -->|分析| F1
+E1 -->|サービング| F2
 
 %% Orchestration (dashed)
-O1 -.->|schedules| C1
-O1 -.->|triggers| C2
+O1 -.->|スケジュール| C1
+O1 -.->|トリガー| C2
 ```
 
-## Which Service Do I Pick?
+## どのサービスを選ぶか？
 
-### Storage / Database
-- Need **ad-hoc SQL analytics** on large datasets → [[Storage/BigQuery|BigQuery]]
-- Need **high-throughput, low-latency key lookups** (time-series, IoT, wide rows) → [[OperationalDBs/Bigtable|Bigtable]]
-- Need **relational OLTP**, moderate scale, existing Postgres/MySQL → [[Cloud-SQL|Cloud-SQL]] or [[OperationalDBs/AlloyDB|AlloyDB]] (AlloyDB for higher performance)
-- Need **globally distributed relational** with strong consistency → [[OperationalDBs/Spanner|Spanner]]
-- Need **document store** for semi-structured, mobile/web, real-time sync → [[OperationalDBs/Firestore|Firestore]]
-- Need **in-memory cache** to reduce DB load, session store → [[OperationalDBs/Memorystore|Memorystore]]
+### ストレージ / データベース
+- 大規模データセットで **アドホックなSQL分析** が必要 → [[Storage/BigQuery|BigQuery]]
+- **高スループット・低レイテンシのキー検索**（時系列、IoT、ワイド行）が必要 → [[OperationalDBs/Bigtable|Bigtable]]
+- **リレーショナルOLTP**、中規模、既存Postgres/MySQLが前提 → [[Cloud-SQL|Cloud-SQL]] または [[OperationalDBs/AlloyDB|AlloyDB]]（より高性能ならAlloyDB）
+- 強整合の **グローバル分散リレーショナル** が必要 → [[OperationalDBs/Spanner|Spanner]]
+- 半構造、モバイル/ウェブ、リアルタイム同期向けの **ドキュメントストア** が必要 → [[OperationalDBs/Firestore|Firestore]]
+- DB負荷低減のための **インメモリキャッシュ**、セッションストアが必要 → [[OperationalDBs/Memorystore|Memorystore]]
 
-### Processing
-- Need **streaming OR batch with one API** (Apache Beam), fully managed → [[Processing/Dataflow|Dataflow]]
-- Need **Spark/Hadoop ecosystem**, existing Spark jobs, ML on big data → [[Processing/Dataproc|Dataproc]]
-- Need **SQL-only transforms inside BigQuery** (ELT, incremental models) → [[Processing/Dataform|Dataform]]
+### 処理
+- **1つのAPIでストリーミング/バッチ**（Apache Beam）、フルマネージドが必要 → [[Processing/Dataflow|Dataflow]]
+- **Spark/Hadoopエコシステム**、既存Sparkジョブ、大規模データのMLが必要 → [[Processing/Dataproc|Dataproc]]
+- BigQuery内で **SQLだけの変換**（ELT、増分モデル）が必要 → [[Processing/Dataform|Dataform]]
 
-### Ingestion
-- Need **real-time event streaming**, decoupled producers/consumers → [[Ingestion/PubSub|Pub/Sub]]
-- Need **CDC from an existing OLTP database** (ongoing replication) → [[Ingestion/Datastream|Datastream]]
-- Need **bulk file ingestion** from external systems → [[Cloud-Storage|Cloud Storage]] landing + BigQuery load
+### 取り込み
+- **リアルタイムイベントストリーミング**、プロデューサ/コンシューマ分離が必要 → [[Ingestion/PubSub|Pub/Sub]]
+- **既存OLTPデータベースからのCDC**（継続レプリケーション）が必要 → [[Ingestion/Datastream|Datastream]]
+- 外部システムからの **大量ファイル取り込み** が必要 → [[Cloud-Storage|Cloud Storage]] に着地 + BigQueryロード
 
-### Orchestration
-- Need **complex multi-step pipelines**, cross-system dependencies, existing Airflow → [[Cloud-Composer|Cloud-Composer]]
-- Need **lightweight serverless workflows**, HTTP-based integrations, simple DAGs → [[Orchestration/Workflows|Workflows]]
+### オーケストレーション
+- **複雑な複数ステップのパイプライン**、システム横断の依存関係、既存Airflowが前提 → [[Cloud-Composer|Cloud-Composer]]
+- **軽量なサーバレス・ワークフロー**、HTTPベース連携、シンプルなDAGが必要 → [[Orchestration/Workflows|Workflows]]
 
 ---
 
-## Study Map By Domain
-| Domain             | What To Learn                                                                             | GCP Services / Notes                                                                                  |
+## ドメイン別学習マップ
+| ドメイン             | 学ぶこと                                                                                   | GCPサービス / ノート                                                                                  |
 | ------------------ | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Foundations        | org/projects, regions, quotas, service accounts; OLTP vs OLAP; schemas; data quality      | [[Security/IAM\|IAM]]                                                                                 |
-| Storage            | object naming, locations, lifecycle, access patterns                                      | [[Cloud-Storage\|Cloud Storage]]                                                              |
-| Warehousing        | partitioning/clustering, ingestion, views/materialized views, cost model                  | [[Storage/BigQuery\|BigQuery]]                                                                        |
-| Ingestion          | delivery semantics, retries/DLQ, CDC basics, file formats                                 | [[Ingestion/PubSub\|Pub/Sub]], [[Ingestion/Datastream\|Datastream]]                                   |
-| Processing         | batch vs streaming transforms, windowing, watermarks, state                               | [[Processing/Dataflow\|Dataflow]], [[Processing/Dataproc\|Dataproc]], [[Processing/Dataform\|Dataform]] |
-| Orchestration      | scheduling, retries/backfills, secrets, dependencies                                      | [[Cloud-Composer\|Cloud Composer]], [[Orchestration/Workflows\|Workflows]]              |
-| Modeling/Serving   | dimensional modeling, incremental models, curated datasets                                | [[Storage/BigQuery\|BigQuery]], [[Analytics Consumption/Looker\|Looker]]                              |
-| Operational DBs    | OLTP fundamentals, HA, connectivity patterns, consistency tradeoffs (global with Spanner) | [[Cloud-SQL\|Cloud SQL]], [[OperationalDBs/AlloyDB\|AlloyDB]], [[OperationalDBs/Spanner\|Spanner]], [[OperationalDBs/Firestore\|Firestore]], [[OperationalDBs/Memorystore\|Memorystore]] |
-| Governance/Quality | metadata, lineage, data contracts, freshness/completeness checks                          | [[Governance/Dataplex\|Dataplex]], [[Data-Catalog\|Data Catalog]]                          |
-| Security           | least privilege, CMEK/KMS, secrets, auditing, DLP concepts                                | [[Cloud-KMS\|Cloud KMS]], [[Secret-Manager\|Secret Manager]], [[Security/DLP\|DLP]], [[VPC-Service-Controls\|VPC Service Controls]] |
-| Ops/Cost           | monitoring, alerting, incident response, cost controls/capacity planning                  | [[Cloud-Monitoring\|Cloud Monitoring]], [[Cloud-Logging\|Cloud Logging]]  |
+| 基礎                | 組織/プロジェクト、リージョン、クォータ、サービスアカウント；OLTP vs OLAP；スキーマ；データ品質 | [[Security/IAM\|IAM]]                                                                                 |
+| ストレージ          | オブジェクト命名、ロケーション、ライフサイクル、アクセスパターン                             | [[Cloud-Storage\|Cloud Storage]]                                                              |
+| ウェアハウス        | パーティショニング/クラスタリング、取り込み、ビュー/マテリアライズドビュー、コストモデル       | [[Storage/BigQuery\|BigQuery]]                                                                        |
+| 取り込み            | 配信セマンティクス、リトライ/DLQ、CDC基礎、ファイル形式                                      | [[Ingestion/PubSub\|Pub/Sub]], [[Ingestion/Datastream\|Datastream]]                                   |
+| 処理                | バッチ vs ストリーミング変換、ウィンドウ、ウォーターマーク、ステート                          | [[Processing/Dataflow\|Dataflow]], [[Processing/Dataproc\|Dataproc]], [[Processing/Dataform\|Dataform]] |
+| オーケストレーション | スケジューリング、リトライ/バックフィル、シークレット、依存関係                               | [[Cloud-Composer\|Cloud Composer]], [[Orchestration/Workflows\|Workflows]]              |
+| モデリング/サービング | ディメンショナルモデリング、増分モデル、キュレート済みデータセット                             | [[Storage/BigQuery\|BigQuery]], [[Analytics Consumption/Looker\|Looker]]                              |
+| 運用DB              | OLTP基礎、HA、接続パターン、整合性のトレードオフ（Spannerでグローバル）                       | [[Cloud-SQL\|Cloud SQL]], [[OperationalDBs/AlloyDB\|AlloyDB]], [[OperationalDBs/Spanner\|Spanner]], [[OperationalDBs/Firestore\|Firestore]], [[OperationalDBs/Memorystore\|Memorystore]] |
+| ガバナンス/品質      | メタデータ、リネージ、データコントラクト、鮮度/完全性チェック                                 | [[Governance/Dataplex\|Dataplex]], [[Data-Catalog\|Data Catalog]]                          |
+| セキュリティ         | 最小権限、CMEK/KMS、シークレット、監査、DLP概念                                               | [[Cloud-KMS\|Cloud KMS]], [[Secret-Manager\|Secret Manager]], [[Security/DLP\|DLP]], [[VPC-Service-Controls\|VPC Service Controls]] |
+| 運用/コスト          | 監視、アラート、インシデント対応、コスト制御/キャパシティ計画                                  | [[Cloud-Monitoring\|Cloud Monitoring]], [[Cloud-Logging\|Cloud Logging]]  |
 
-## Service Comparison Tables
+## サービス比較表
 
-### Processing: Dataflow vs Dataproc vs Dataform
+### 処理：Dataflow vs Dataproc vs Dataform
 
-| Dimension        | [[Processing/Dataflow\|Dataflow]]             | [[Processing/Dataproc\|Dataproc]]           | [[Processing/Dataform\|Dataform]]           |
+| 観点             | [[Processing/Dataflow\|Dataflow]]             | [[Processing/Dataproc\|Dataproc]]           | [[Processing/Dataform\|Dataform]]           |
 | ---------------- | --------------------------------------------- | ------------------------------------------- | ------------------------------------------- |
-| Paradigm         | Apache Beam (unified batch + stream)          | Spark / Hadoop ecosystem                    | SQL-based ELT inside BigQuery               |
-| Best for         | New pipelines, streaming, serverless          | Existing Spark jobs, ML on big data         | SQL transforms, incremental BQ models       |
-| Server mgmt      | Fully managed / serverless                    | Managed cluster (you size it)               | Serverless (runs inside BQ)                 |
-| Language         | Python / Java (Beam)                          | PySpark / Scala / SparkSQL                  | SQL + JavaScript (SQLX)                     |
-| Streaming        | ✓ Native (windows, watermarks, state)        | ✓ Spark Streaming (more complex)            | ✗ Batch only                               |
-| Cold start       | Moderate (worker provisioning)                | Slow (cluster spin-up) or pre-warm          | Fast (BQ-native)                            |
-| Cost model       | Per vCPU-hr + shuffle                         | Per vCPU-hr (cluster up-time)               | BQ slot consumption                         |
+| パラダイム        | Apache Beam（バッチ + ストリーム統合）         | Spark / Hadoopエコシステム                   | BigQuery内のSQLベースELT                    |
+| 最適             | 新規パイプライン、ストリーミング、サーバレス    | 既存Sparkジョブ、大規模データのML             | SQL変換、BigQuery増分モデル                  |
+| サーバ管理        | フルマネージド / サーバレス                    | マネージドクラスタ（サイズ設計は自分）        | サーバレス（BigQuery内で実行）              |
+| 言語             | Python / Java（Beam）                         | PySpark / Scala / SparkSQL                  | SQL + JavaScript（SQLX）                    |
+| ストリーミング     | ✓ ネイティブ（ウィンドウ、ウォーターマーク、ステート） | ✓ Spark Streaming（より複雑）          | ✗ バッチのみ                                |
+| コールドスタート    | 中（ワーカーのプロビジョニング）               | 遅い（クラスタ起動）または事前ウォーム        | 速い（BigQueryネイティブ）                  |
+| コストモデル       | vCPU-hr課金 + shuffle                         | vCPU-hr課金（クラスタ稼働時間）               | BigQueryスロット消費                         |
 
-### Databases: Choosing the Right Store
+### データベース：適切なストアの選び方
 
-| Dimension        | [[Storage/BigQuery\|BigQuery]]  | [[OperationalDBs/Bigtable\|Bigtable]] | [[Cloud-SQL\|Cloud SQL]] | [[OperationalDBs/Spanner\|Spanner]] | [[OperationalDBs/Firestore\|Firestore]] |
-| ---------------- | ------------------------------- | ------------------------------------- | --------------------------------------- | ----------------------------------- | --------------------------------------- |
-| Type             | Analytical warehouse            | Wide-column NoSQL                     | Relational OLTP                         | Relational (global)                 | Document NoSQL                          |
-| Consistency      | Eventually consistent reads     | Row-level strong                      | Strong (single region)                  | External (TrueTime)                 | Strong (per-document)                   |
-| Scale            | Petabytes (analytical)          | Petabytes (operational)               | TBs (vertical + read replicas)          | Petabytes (global)                  | TBs (auto-scale)                        |
-| Latency          | Seconds (query)                 | Single-digit ms                       | ms (OLTP)                               | ms (OLTP, globally)                 | ms (doc lookup)                         |
-| Schema           | Columnar, nested/repeated       | Schemaless (column families)          | Fixed relational schema                 | Fixed relational schema             | Flexible (JSON-like docs)               |
-| Typical use      | Analytics, BI, ML features      | IoT, time-series, ad-tech             | ERP, CMS, transactional apps            | Finance, inventory (global)         | Mobile/web apps, real-time sync         |
+| 観点    | [[Storage/BigQuery\|BigQuery]] | [[OperationalDBs/Bigtable\|Bigtable]] | [[Cloud-SQL\|Cloud SQL]] | [[OperationalDBs/Spanner\|Spanner]] | [[OperationalDBs/Firestore\|Firestore]] |
+| ----- | ------------------------------ | ------------------------------------- | ------------------------ | ----------------------------------- | --------------------------------------- |
+| 種別    | 分析用ウェアハウス                      | ワイドカラムNoSQL                           | リレーショナルOLTP              | リレーショナル（グローバル）                      | ドキュメントNoSQL                             |
+| 整合性   | 結果整合の読み取り                      | 行単位の強整合                               | 強整合（単一リージョン）             | 外部整合（TrueTime）                      | 強整合（ドキュメント単位）                           |
+| スケール  | PB（分析）                         | PB（運用）                                | TB（垂直 + リードレプリカ）         | PB（グローバル）                           | TB（自動スケール）                              |
+| レイテンシ | 秒（クエリ）                         | 1桁ms                                  | ms（OLTP）                 | ms（OLTP、グローバル）                      | ms（ドキュメント参照）                            |
+| スキーマ  | カラムナ、ネスト/繰り返し                  | スキーマレス（カラムファミリ）                       | 固定のリレーショナルスキーマ           | 固定のリレーショナルスキーマ                      | 柔軟（JSON風ドキュメント）                         |
+| 典型用途  | 分析、BI、ML特徴量                    | IoT、時系列、アドテク                          | ERP、CMS、トランザクションアプリ      | 金融、在庫（グローバル）                        | モバイル/ウェブ、リアルタイム同期                       |
 
----
+## よくあるアンチパターン（やってはいけないこと）
 
-## Minimal Hands-On Checklist
-
-**Storage & Warehousing**
-- [ ] Create a bucket with UBLA + public access prevention + lifecycle rules (and explain why).
-- [ ] Load Parquet/Avro from [[Cloud-Storage|GCS]] into a partitioned + clustered [[Storage/BigQuery|BigQuery]] table.
-- [ ] Write an incremental transform using `MERGE` into a partitioned table.
-
-**Ingestion & Streaming**
-- [ ] Build a simple [[Ingestion/PubSub|Pub/Sub]] → [[Processing/Dataflow|Dataflow]] → [[Storage/BigQuery|BigQuery]] streaming pipeline (with retries/DLQ).
-- [ ] Set up a [[Ingestion/Datastream|Datastream]] CDC job from Cloud SQL → BigQuery; verify backfill and ongoing replication.
-
-**Orchestration**
-- [ ] Write a [[Cloud-Composer|Cloud-Composer]] DAG with retries, SLA alerts, and a backfill command (`backfill -s … -e …`).
-
-**Governance & Quality**
-- [ ] Create a [[Governance/Dataplex|Dataplex]] lake/zone, attach a BigQuery dataset, and run a data quality scan.
-- [ ] Apply [[Data-Catalog|Data-Catalog]] policy tags to a BigQuery column and enforce column-level access.
-
-**Security**
-- [ ] Enable [[Cloud-KMS|CMEK]] on a BigQuery dataset; rotate the key and verify existing data is still accessible.
-- [ ] Store a service-account key in [[Secret-Manager|Secret-Manager]]; access it from a Dataflow job without hardcoding.
-- [ ] Run a [[Security/DLP|DLP]] scan and produce a de-identified dataset for analytics.
-
-**Observability**
-- [ ] Create a log sink export from [[Cloud-Logging|Cloud Logging]] to BigQuery; query pipeline errors.
-- [ ] Add [[Cloud-Monitoring|Cloud Monitoring]] alerting for pipeline freshness and failure; document a backfill plan.
-
-## Common Anti-Patterns (What NOT To Do)
-
-| Anti-Pattern                                                                            | Why It's Wrong                                           | Correct Approach                                                                                                                                         |
+| アンチパターン                                                                           | なぜダメか                                               | 正しいアプローチ                                                                                                                                        |
 | --------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Using [[Storage/BigQuery\|BigQuery]] for OLTP (high-frequency point writes)             | BQ is analytical; DML mutations are costly and slow      | Use [[Cloud-SQL\|Cloud SQL]], [[OperationalDBs/Spanner\|Spanner]], or [[OperationalDBs/Firestore\|Firestore]] for transactional workloads |
-| `SELECT *` in BigQuery                                                                  | Scans all columns → wastes slot quota and drives up cost | Select only needed columns; use column pruning                                                                                                           |
-| No dead-letter queue (DLQ) on [[Ingestion/PubSub\|Pub/Sub]] subscriptions               | Poison-pill messages block processing indefinitely       | Always configure a dead-letter topic + max delivery attempts                                                                                             |
-| No idempotency in batch loads                                                           | Re-running a failed job duplicates rows                  | Use `WRITE_TRUNCATE` or `MERGE` patterns; design pipelines to be rerunnable safely                                                                       |
-| Hardcoding credentials in pipeline code                                                 | Credentials leak into logs, VCS, and container images    | Use [[Secret-Manager\|Secret Manager]] or Workload Identity / service account impersonation                                                     |
-| Over-partitioning BigQuery tables (too many small partitions)                           | Partition pruning overhead; metadata costs increase      | Partition by date/int range only when cardinality is manageable; cluster instead for high-cardinality columns                                            |
-| Using single-region [[Cloud-Storage\|Cloud Storage]] for critical pipeline data | Single point of failure; no cross-region DR              | Use multi-region or dual-region buckets for business-critical datasets                                                                                   |
-| Running [[Processing/Dataproc\|Dataproc]] clusters for SQL-only transforms              | Expensive, slow spin-up; cluster idling costs money      | Use [[Processing/Dataform\|Dataform]] or BigQuery SQL directly for ELT                                                                                   |
-| Not setting watermarks in [[Processing/Dataflow\|Dataflow]] streaming pipelines         | Late data silently dropped or causes unbounded state     | Always configure allowed lateness and explicit watermark strategies                                                                                      |
-| Giving pipelines owner/editor roles                                                     | Violates least privilege; blast radius is too large      | Grant only the minimum [[Security/IAM\|IAM]] roles needed per resource                                                                                   |
-
----
-
-## Engineering Practice (How You Ship)
-- IaC: Terraform for buckets, datasets, service accounts, and pipeline infra.
-- CI/CD: test + deploy pipelines, config management, environment separation (dev/prod).
-- CLI: `gcloud`, `bq`, `gsutil` (or `gcloud storage`)
+| OLTP（高頻度のポイント書き込み）に [[Storage/BigQuery\|BigQuery]] を使う                 | BQは分析用途で、DML更新は高コストかつ遅い                 | トランザクション用途は [[Cloud-SQL\|Cloud SQL]]、[[OperationalDBs/Spanner\|Spanner]]、[[OperationalDBs/Firestore\|Firestore]] を使う                     |
+| BigQueryで `SELECT *` を使う                                                            | 全列をスキャン → スロット枠を無駄にし、コストが増える      | 必要な列だけを選ぶ（列プルーニング）                                                                                                                    |
+| [[Ingestion/PubSub\|Pub/Sub]] サブスクリプションにデッドレターキュー（DLQ）がない        | 毒メッセージが処理を無期限に止める                        | デッドレタートピック + 最大配信試行回数を必ず設定する                                                                                                     |
+| バッチロードに冪等性がない                                                               | 失敗ジョブを再実行すると行が重複する                      | `WRITE_TRUNCATE` や `MERGE` パターンを使い、再実行可能な設計にする                                                                                        |
+| パイプラインコードに認証情報をハードコードする                                           | 認証情報がログ、VCS、コンテナイメージに漏れる             | [[Secret-Manager\|Secret Manager]] または Workload Identity / サービス アカウントの代行（impersonation）を使う                                          |
+| BigQueryテーブルを過度にパーティション分割する（小さいパーティションが多すぎる）         | パーティションプルーニングのオーバーヘッド、メタデータ費用が増える | 日付/整数レンジはカーディナリティが管理可能な範囲でのみ使い、高カーディナリティはクラスタリングで対応する                                               |
+| 重要なパイプラインデータに単一リージョンの [[Cloud-Storage\|Cloud Storage]] を使う        | 単一障害点になり、リージョン間DRがない                     | 事業クリティカルなデータはマルチリージョンまたはデュアルリージョンのバケットを使う                                                                       |
+| SQLだけの変換のために [[Processing/Dataproc\|Dataproc]] クラスタを動かす                 | 高コスト、起動が遅い、アイドルでもクラスタ費用が発生する   | ELTは [[Processing/Dataform\|Dataform]] または BigQuery SQL を直接使う                                                                                   |
+| [[Processing/Dataflow\|Dataflow]] のストリーミングでウォーターマークを設定しない         | 遅延データが黙って捨てられる／ステートが無制限に増える     | 許容遅延（allowed lateness）と明示的なウォーターマーク戦略を必ず設定する                                                                                 |
+| パイプラインにOwner/Editorロールを付与する                                               | 最小権限に反し、影響範囲（blast radius）が大きすぎる       | リソースごとに必要最小限の [[Security/IAM\|IAM]] ロールだけを付与する                                                                                    |

@@ -1,99 +1,99 @@
 # Cloud Composer
 
-Cloud Composer is GCP's managed Apache Airflow service for orchestrating workflows. It schedules and runs DAGs that coordinate tasks across data systems, while Google manages the underlying infrastructure.
+Cloud Composer は、ワークフローをオーケストレーションするためのGCPマネージド Apache Airflow サービスである。データシステム横断のタスクを調整するDAGをスケジュール/実行し、下位インフラはGoogleが管理する。
 
-## Use Cases
-- Schedule and monitor ELT/ETL pipelines across multiple GCP services.
-- Coordinate dependencies (ingest → transform → publish) with retries and SLAs.
-- Run batch workflows that need backfills and parameterised runs.
-- Centralize operational visibility for multi-step data jobs.
+## ユースケース
+- 複数のGCPサービスにまたがるELT/ETLパイプラインをスケジュールし、監視する。
+- リトライとSLAを備えて、依存関係（ingest → transform → publish）を調整する。
+- バックフィルやパラメータ実行が必要なバッチワークフローを動かす。
+- 複数ステップのデータジョブに対する運用上の可視性を一元化する。
 
-## Mental Model
-- A DAG defines task dependencies; the scheduler decides what runs next.
-- Tasks should be idempotent — retries happen automatically on failure.
-- Composer is **orchestration, not execution**: heavy compute stays in [[Processing/Dataflow|Dataflow]], [[Processing/Dataproc|Dataproc]], or [[Storage/BigQuery|BigQuery]].
-- Environment health depends on DAG size, scheduling load, and worker capacity.
+## メンタルモデル
+- DAGがタスク依存を定義し、スケジューラが次に何を動かすかを決める。
+- タスクは冪等であるべき（失敗時は自動的にリトライされる）。
+- Composer は **オーケストレーションであり実行基盤ではない**：重い処理は [[Processing/Dataflow|Dataflow]]、[[Processing/Dataproc|Dataproc]]、[[Storage/BigQuery|BigQuery]] に置く。
+- 環境の健全性は、DAG規模、スケジューリング負荷、ワーカー容量に依存する。
 
-> "Multiple jobs with complex dependencies" → Cloud Composer. 
-> "Simple API call chain or event-driven glue" → [[Orchestration/Workflows|Workflows]].
+> 「複雑な依存関係を持つ複数ジョブ」→ Cloud Composer。  
+> 「シンプルなAPI呼び出し連鎖/イベント駆動のつなぎ」→ [[Orchestration/Workflows|Workflows]]。
 
-## Core Concepts
+## コア概念
 
-| Concept         | Description                                                                                                                      |                  |
+| 概念            | 説明                                                                                                                             |                  |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| **Environment** | Managed Airflow deployment — scheduler, web UI, workers, metadata DB                                                             |                  |
-| **DAG**         | Directed acyclic graph of tasks (nodes) and dependencies (edges) defining order, scheduling/catchup, and parallelism (no cycles) |                  |
-| **Task**        | Unit of work; one operator instance                                                                                              |                  |
-| **Operator**    | Predefined task type (BigQuery, Dataflow, Bash, HTTP, etc.)                                                                      |                  |
-| **Sensor**      | Waits for an external condition before proceeding (file, table, message)                                                         |                  |
-| **Executor**    | Controls how tasks are distributed and scaled across workers                                                                     |                  |
-| **Connection**  | Named credentials for external systems; store secrets in [[Security/Secret Manager                                               | Secret Manager]] |
-| **REST API**    | Airflow API to trigger DAG runs, clear tasks, and fetch DAG/task status from external systems                                    |                  |
+| **Environment** | マネージドAirflow環境（scheduler、web UI、workers、metadata DB）                                                                  |                  |
+| **DAG**         | タスク（ノード）と依存関係（エッジ）からなる有向非巡回グラフ。順序、スケジューリング/catchup、並列性を定義する（循環なし）       |                  |
+| **Task**        | 作業単位（1つのoperatorインスタンス）                                                                                             |                  |
+| **Operator**    | 事前定義のタスク種別（BigQuery、Dataflow、Bash、HTTPなど）                                                                        |                  |
+| **Sensor**      | 外部条件を待ってから進む（ファイル、テーブル、メッセージなど）                                                                     |                  |
+| **Executor**    | タスクをワーカーへどう分配し、どうスケールするかを制御する                                                                         |                  |
+| **Connection**  | 外部システムの名前付き認証情報。シークレットは [[Security/Secret Manager                                               | Secret Manager]] に保存する |
+| **REST API**    | 外部システムからDAG実行をトリガーし、タスクをクリアし、DAG/タスク状態を取得するAirflow API                                        |                  |
 
-## Key GCP Operators
+## 主要GCPオペレータ
 
-| Operator | Use |
+| オペレータ | 用途 |
 | --- | --- |
-| `BigQueryInsertJobOperator` | Submit BigQuery SQL jobs (scheduled queries, DML, DDL) |
-| `DataflowCreateJobOperator` | Launch a Dataflow batch or streaming job |
-| `DataprocSubmitJobOperator` | Submit a Spark/Hadoop job to a Dataproc cluster |
-| `GCSObjectExistenceSensor` | Wait for a file to arrive in Cloud Storage before proceeding |
-| `BigQueryTableExistenceSensor` | Wait for a table or partition to be populated |
-| `PubSubPullSensor` | Wait for a Pub/Sub message |
-| `BashOperator` | Run CLI commands (`bq`, `gcloud`, shell scripts) |
+| `BigQueryInsertJobOperator` | BigQuery SQLジョブ（scheduled queries、DML、DDL）を投入する |
+| `DataflowCreateJobOperator` | Dataflowのバッチ/ストリーミングジョブを起動する |
+| `DataprocSubmitJobOperator` | DataprocクラスタへSpark/Hadoopジョブを投入する |
+| `GCSObjectExistenceSensor` | Cloud Storageにファイルが到着するまで待つ |
+| `BigQueryTableExistenceSensor` | テーブルまたはパーティションが生成されるまで待つ |
+| `PubSubPullSensor` | Pub/Subメッセージを待つ |
+| `BashOperator` | CLIコマンド（`bq`、`gcloud`、シェルスクリプト）を実行する |
 
-## Common DAG Patterns
+## よくあるDAGパターン
 
 **Ingest → stage → transform → publish:**
-- Use sensors between steps to gate on data arrival before proceeding.
-- Each task must be idempotent — use `WRITE_TRUNCATE`, `MERGE`, or partition overwrites.
-- Prefer separate DAGs per table unless transformations are identical; avoid mega‑DAGs with heavy branching.
+- ステップ間にsensorを置き、データ到着を待ってから次へ進む。
+- 各タスクは冪等である必要がある（`WRITE_TRUNCATE`、`MERGE`、パーティション上書きを使う）。
+- 変換が同一でない限り、テーブルごとにDAGを分ける。分岐が多い巨大DAGは避ける。
 
 **Backfills:**
-- `catchup=True` replays missed intervals automatically on DAG enable.
-- Manual: `airflow dags backfill -s <start_date> -e <end_date> <dag_id>`
-- Parameterise tasks by `{{ ds }}` (execution date) so each run targets the right partition.
+- `catchup=True` は、DAG有効化時に取りこぼした間隔を自動的にリプレイする。
+- 手動: `airflow dags backfill -s <start_date> -e <end_date> <dag_id>`
+- 各runが正しいパーティションを対象にできるよう、`{{ ds }}`（execution date）でタスクをパラメータ化する。
 
 **SLA monitoring:**
-- Set `sla` on individual tasks; Airflow triggers `sla_miss_callback` when exceeded.
-- Pair with email alerts or [[Ingestion/PubSub|Pub/Sub]] notifications for on-call escalation.
+- 個別タスクに `sla` を設定し、超過時にAirflowが `sla_miss_callback` を起動する。
+- オンコールのエスカレーションには、メールアラートや [[Ingestion/PubSub|Pub/Sub]] 通知と組み合わせる。
 
 **Scheduled BigQuery with retries:**
-- `BigQueryInsertJobOperator` with `retries=3`, `retry_delay=timedelta(minutes=5)`.
-- Use `WRITE_APPEND` or `WRITE_TRUNCATE` based on idempotency requirements.
-- Set `email_on_failure=True` for alerting after retries are exhausted.
-- For 2-hour SQL with retries/alerts, prefer Composer + `BigQueryInsertJobOperator`; Workflows is too light for scheduling/backfills.
+- `retries=3`、`retry_delay=timedelta(minutes=5)` を設定した `BigQueryInsertJobOperator` を使う。
+- 冪等性要件に応じて `WRITE_APPEND` または `WRITE_TRUNCATE` を使う。
+- リトライ枯渇後にアラートするため `email_on_failure=True` を設定する。
+- 2時間SQLにリトライ/アラートが必要なら、Composer + `BigQueryInsertJobOperator` を優先する。Workflowsはスケジューリング/バックフィル用途としては軽すぎる。
 
-## Exam Decision: Composer vs Workflows
+## 試験の判断：Composer vs Workflows
 
-| Requirement signal                                                    | Choose                                 | Reject                                 | Why rejected                                                                                   |
+| 要件シグナル                                                          | 選ぶ                                 | 却下                                 | 却下理由                                                                                       |
 | --------------------------------------------------------------------- | -------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Scheduled pipelines, backfills, SLAs, many cross-service dependencies | Cloud Composer                         | [[Orchestration/Workflows\|Workflows]] | Workflows is for lightweight API chaining; not built for DAG scheduling or backfill operations |
-| Simple step orchestration (HTTP / GCP API calls), event-driven glue   | [[Orchestration/Workflows\|Workflows]] | Cloud Composer                         | Composer is heavier operationally; don't pick it for a few API calls with retries/branches     |
+| スケジュール付きパイプライン、バックフィル、SLA、多数のサービス横断依存 | Cloud Composer                         | [[Orchestration/Workflows\|Workflows]] | Workflowsは軽量なAPIチェイニング向けで、DAGスケジューリングやバックフィル運用のための設計ではない |
+| シンプルなステップ調整（HTTP/GCP API呼び出し）、イベント駆動のつなぎ    | [[Orchestration/Workflows\|Workflows]] | Cloud Composer                         | Composerは運用負荷が重い。リトライ/分岐付きの少数API呼び出し程度では選ばない                    |
 
-## Security And Access Control
-- Least-privilege [[Security/IAM|IAM]] roles for the environment service account.
-- Prefer private IP environments when possible.
-- Store all credentials in [[Security/Secret-Manager|Secret Manager]] — not in DAG code or plaintext Airflow connections.
-- Private Composer web server → use PSC (private endpoint) not public IP; public exposure violates constraint.
+## セキュリティとアクセス制御
+- 環境サービスアカウントには最小権限の [[Security/IAM|IAM]] ロールを付与する。
+- 可能ならプライベートIP環境を優先する。
+- 認証情報はすべて [[Security/Secret-Manager|Secret Manager]] に保存する（DAGコードや平文Airflow接続に置かない）。
+- Composer web serverをプライベート化する場合は、パブリックIPではなくPSC（プライベートエンドポイント）を使う（公開は制約違反）。
 
-## Operations And Reliability
-- Keep DAGs small; avoid heavy imports at parse time — slow parses delay the entire scheduler.
-- Set sensible concurrency and parallelism limits to avoid worker exhaustion.
-- Monitor task duration, queue time, and scheduler heartbeat.
-- Use retries with exponential backoff for transient failures.
-- Prefer Celery or Kubernetes executor over Sequential executor in production.
+## 運用と信頼性
+- DAGは小さく保ち、パース時の重いimportを避ける（パースが遅いとスケジューラ全体が遅延する）。
+- ワーカー枯渇を避けるため、妥当なconcurrency/parallelism制限を設定する。
+- タスク時間、キュー時間、スケジューラのheartbeatを監視する。
+- 一時障害には指数バックオフ付きリトライを使う。
+- 本番ではSequential executorより、CeleryまたはKubernetes executorを優先する。
 
-## Common Pitfalls
-- Running heavy compute inside Airflow workers — workers are for orchestration only; offload to `DataflowCreateJobOperator`, `DataprocSubmitJobOperator`, or `BigQueryInsertJobOperator`.
-- Heavy Python imports or dynamic DAG generation at parse time — the scheduler re-parses all DAG files on every cycle; slow parses delay the whole environment; keep module-level code minimal.
-- Missing idempotency on retried tasks — Airflow reruns tasks automatically; writes must use `WRITE_TRUNCATE`, `MERGE`, or partition overwrites to avoid duplicating data.
-- Sensors in `mode='poke'` with tight intervals — each poke holds a worker slot for its entire wait; use `mode='reschedule'` so the slot is released between checks.
-- Enabling `catchup=True` without testing — replays every missed interval since `start_date`; unexpected enable can flood downstream systems; limit with `max_active_runs` and test on a short date range first.
-- Storing credentials in DAG code or plaintext Airflow connections — secrets are visible in the metadata DB and web UI; store all credentials in [[Security/Secret-Manager|Secret Manager]] and reference them via the Secrets Backend.
-- Using the Sequential executor in production — executes one task at a time, serializing the entire environment; use Celery or Kubernetes executor for any real workload.
+## よくある落とし穴
+- Airflowワーカー内で重い計算を実行する — ワーカーはオーケストレーション専用。`DataflowCreateJobOperator`、`DataprocSubmitJobOperator`、`BigQueryInsertJobOperator` にオフロードする。
+- パース時の重いPython importや動的DAG生成 — スケジューラは周期ごとに全DAGファイルを再パースする。遅いパースは環境全体を遅延させるため、モジュールレベルのコードを最小にする。
+- リトライ対象タスクに冪等性がない — Airflowは自動で再実行する。重複を避けるため、書き込みは `WRITE_TRUNCATE`、`MERGE`、パーティション上書きを使う。
+- `mode='poke'` のsensorを短い間隔で使う — 待機中ずっとワーカースロットを占有する。`mode='reschedule'` でチェック間にスロットを解放する。
+- テストなしで `catchup=True` を有効化する — `start_date` 以降の未実行間隔をすべてリプレイし、下流を飽和させうる。`max_active_runs` で制限し、短い期間で先にテストする。
+- 認証情報をDAGコードや平文Airflow接続に保存する — シークレットはmetadata DBとweb UIで見える。認証情報はすべて [[Security/Secret-Manager|Secret Manager]] に保存し、Secrets Backendで参照する。
+- 本番でSequential executorを使う — 1タスクずつ実行され環境全体が直列化される。実運用ではCeleryまたはKubernetes executorを使う。
 
-## Integrations
+## 連携
 - [[Storage/BigQuery|BigQuery]]: scheduled queries, dataset maintenance, and monitoring.
 - [[Storage/Cloud-Storage|Cloud Storage]]: file arrival sensors and staging data.
 - [[Processing/Dataflow|Dataflow]]: launch streaming or batch pipelines.
@@ -101,10 +101,10 @@ Cloud Composer is GCP's managed Apache Airflow service for orchestrating workflo
 - [[Ingestion/PubSub|Pub/Sub]]: event-driven triggers and notifications.
 - [[Security/Secret-Manager|Secret Manager]]: store and retrieve connection secrets.
 
-## Quick Checklist
-- Choose region aligned with [[Storage/BigQuery|BigQuery]] and [[Storage/Cloud-Storage|Cloud Storage]].
-- Define naming conventions and ownership for DAGs.
-- Set up connections and secrets in [[Security/Secret-Manager|Secret Manager]].
-- Configure alerting for task failures and SLA misses.
-- Document retry and backfill strategy per pipeline.
-- Enforce idempotent tasks — partition overwrites, MERGE, or WRITE_TRUNCATE.
+## クイックチェックリスト
+- [[Storage/BigQuery|BigQuery]] と [[Storage/Cloud-Storage|Cloud Storage]] に揃えてリージョンを選ぶ。
+- DAGの命名規約とオーナーを定義する。
+- 接続とシークレットを [[Security/Secret-Manager|Secret Manager]] に設定する。
+- タスク失敗とSLAミスのアラートを構成する。
+- パイプラインごとにリトライとバックフィル戦略を文書化する。
+- タスクの冪等性を強制する（パーティション上書き、MERGE、WRITE_TRUNCATE）。

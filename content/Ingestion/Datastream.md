@@ -1,89 +1,89 @@
 # Datastream
 
-Datastream is GCP's managed change data capture (CDC) service. It captures row-level changes from source databases and streams them to destinations like [[Storage/BigQuery|BigQuery]] or [[Cloud-Storage]] with minimal operational overhead.
+Datastream は、GCPのマネージド Change Data Capture（CDC）サービスである。ソースデータベースの行レベル変更を取り込み、[[Storage/BigQuery|BigQuery]] や [[Cloud-Storage]] などの宛先へ、最小限の運用負荷でストリーミングする。
 
-## Use Cases
-- Replicate OLTP data into analytics systems with low latency.
-- Build CDC pipelines without managing Debezium or custom log readers.
-- Keep a historical trail for auditing or replay.
-- Feed streaming pipelines (often [[Processing/Dataflow|Dataflow]]) for transformation or routing.
-- Use a fully managed service without Kafka or custom CDC clusters.
+## ユースケース
+- OLTPデータを分析システムへ低レイテンシでレプリケーションする。
+- Debezium やカスタムログリーダーを運用せずにCDCパイプラインを構築する。
+- 監査やリプレイのために履歴トレイルを保持する。
+- 変換/ルーティングのために、（多くは [[Processing/Dataflow|Dataflow]] の）ストリーミングパイプラインへ供給する。
+- Kafka やカスタムCDCクラスタなしで、フルマネージドなサービスを使う。
 
-## Mental Model
-- Datastream reads database logs (not table scans) for ongoing changes.
-- It emits ordered change events per table (insert/update/delete).
-- Initial backfill is separate from continuous change capture.
-- You usually land raw CDC events, then transform into curated tables.
+## メンタルモデル
+- Datastream は継続的な変更のために、テーブルスキャンではなくデータベースログを読む。
+- テーブル単位に順序付けられた変更イベント（insert/update/delete）を出力する。
+- 初期バックフィルは、継続的な変更キャプチャとは別。
+- 通常はrawなCDCイベントを着地させ、そこからキュレート済みテーブルへ変換する。
 
-## Core Concepts
-- **Connection profile**: credentials and connectivity info for source/destination.
-- **Stream**: defines sources, destinations, and options (objects, filters, backfill).
-- **Backfill**: initial snapshot of selected tables.
-- **Change stream**: continuous CDC events from logs.
-- **Private connectivity**: secure network path to sources.
+## コア概念
+- **Connection profile**: ソース/宛先の認証情報と接続情報。
+- **Stream**: ソース、宛先、オプション（オブジェクト、フィルタ、バックフィル）を定義する。
+- **Backfill**: 選択テーブルの初期スナップショット。
+- **Change stream**: ログ由来の継続的なCDCイベント。
+- **Private connectivity**: ソースへのセキュアなネットワーク経路。
 
-## Sources And Destinations
+## ソースと宛先
 
 ### Sources
-- [[Cloud-SQL|Cloud SQL]] for MySQL/PostgreSQL.
-- Self-managed MySQL/PostgreSQL (with proper connectivity).
-- Oracle (CDC supported).
+- MySQL/PostgreSQL の [[Cloud-SQL|Cloud SQL]]。
+- 自己管理のMySQL/PostgreSQL（適切な接続が前提）。
+- Oracle（CDC対応）。
 
 ### Destinations
-- [[Storage/BigQuery|BigQuery]] (CDC tables + metadata).
-- [[Cloud-Storage|Cloud Storage]] (file-based CDC for downstream processing).
+- [[Storage/BigQuery|BigQuery]]（CDCテーブル + メタデータ）。
+- [[Cloud-Storage|Cloud Storage]]（下流処理向けのファイルベースCDC）。
 
-## Backfill And CDC Flow
-Typical lifecycle:
-1. Create connection profiles (source + destination).
-2. Define a stream (select schemas/tables + backfill settings).
-3. Run backfill to capture baseline tables.
-4. Start continuous CDC to keep data current.
+## バックフィルとCDCフロー
+典型的なライフサイクル:
+1. connection profile を作成する（ソース + 宛先）。
+2. stream を定義する（スキーマ/テーブル選択 + バックフィル設定）。
+3. バックフィルを実行し、ベースラインのテーブルを取り込む。
+4. 継続CDCを開始し、データを最新に保つ。
 
-Backfill guidance:
-- Use it for initial load; verify row counts and primary keys.
-- Schedule in off-peak hours if source load is sensitive.
+バックフィルの指針:
+- 初期ロードに使い、行数と主キーを検証する。
+- ソース負荷に敏感なら、オフピークにスケジュールする。
 
-## Data Shape And Semantics
-Datastream emits changes, not final state:
-- Inserts/updates/deletes arrive as events with metadata (timestamp, source).
-- You must apply changes to build a current-state table.
-- Deletes are explicit events; downstream should handle tombstones.
+## データ形状とセマンティクス
+Datastream は最終状態ではなく変更を出力する:
+- insert/update/delete は、メタデータ（timestamp、source）付きのイベントとして到着する。
+- 現在状態テーブルを作るには、変更を適用する必要がある。
+- delete は明示的なイベントとして到着する。下流はtombstoneを扱える必要がある。
 
-## Target Patterns
+## 宛先別パターン
 
 ### To [[Storage/BigQuery|BigQuery]]
-- Datastream writes CDC tables; build curated tables with MERGE.
-- Use event time from the CDC metadata for ordering.
+- Datastream がCDCテーブルを書き出し、`MERGE` でキュレート済みテーブルを構築する。
+- 順序付けにはCDCメタデータのイベント時刻を使う。
 
 ### To [[Cloud-Storage|Cloud Storage]]
-- CDC files can be processed by [[Processing/Dataflow|Dataflow]] or batch jobs.
-- Good for replayable, append-only pipelines.
+- CDCファイルを [[Processing/Dataflow|Dataflow]] またはバッチジョブで処理できる。
+- リプレイ可能な追記専用パイプラインに向く。
 
-## Performance And Cost
-- Scope streams to required schemas/tables to reduce load and cost.
-- Monitor lag between source and destination.
-- Large backfills can be expensive; validate data volumes first.
+## 性能とコスト
+- 必要なスキーマ/テーブルにstreamを絞り、負荷とコストを下げる。
+- ソースと宛先のラグを監視する。
+- 大きなバックフィルは高コストになりうるため、先にデータ量を検証する。
 
-## Reliability And Monitoring
-- Track stream health, lag, and error logs.
-- Ensure source log retention exceeds stream lag to avoid gaps.
-- Reconcile with periodic row counts or checksums.
+## 信頼性と監視
+- streamの健全性、ラグ、エラーログを追跡する。
+- 欠損を避けるため、ソースのログ保持期間がstreamラグを上回るようにする。
+- 定期的な行数やチェックサムで突合する。
 
-## Security And Governance
-- Use least-privilege database users for CDC.
- - When the source DB (e.g., **Oracle**) is in a VPC, choose private connectivity (PSC/VPC peering) to avoid public IP exposure.
-- Use CMEK where required for destinations (via [[Cloud-KMS|Cloud KMS]]).
+## セキュリティとガバナンス
+- CDC用のデータベースユーザーは最小権限にする。
+ - ソースDB（例：**Oracle**）がVPC内にある場合、パブリックIP露出を避けるためにプライベート接続（PSC/VPC peering）を選ぶ。
+- 宛先でCMEKが必要なら、[[Cloud-KMS|Cloud KMS]] 経由で有効化する。
 
-## Common Pitfalls
-- Missing primary keys (hard to upsert cleanly downstream).
-- Insufficient source log retention causing data loss.
-- Assuming CDC tables are "final" without applying changes.
-- Region mismatch between sources and destinations.
+## よくある落とし穴
+- 主キーがない（下流でクリーンにupsertしにくい）。
+- ソースログの保持期間が不足し、データ欠損が起きる。
+- 変更適用せずにCDCテーブルを「最終形」と誤解する。
+- ソースと宛先のリージョン不一致。
 
-## Quick Checklist
-- Verify source database log settings and retention.
-- Decide destination ([[Storage/BigQuery|BigQuery]] vs [[Cloud-Storage|Cloud Storage]]) and downstream transform plan.
-- Plan backfill timing and validate row counts.
-- Ensure primary keys exist for reliable upserts.
-- Set monitoring on lag and error rates.
+## クイックチェックリスト
+- ソースDBのログ設定と保持期間を確認する。
+- 宛先（[[Storage/BigQuery|BigQuery]] vs [[Cloud-Storage|Cloud Storage]]）と下流の変換計画を決める。
+- バックフィルのタイミングを計画し、行数を検証する。
+- 信頼できるupsertのために主キーの存在を確認する。
+- ラグとエラー率の監視を設定する。
