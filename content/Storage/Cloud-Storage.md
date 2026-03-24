@@ -87,17 +87,14 @@ end
 
 BQ[BigQuery]
 
-%% Sources -> landing
 APP -->|ファイル投下| LAND
 CDC -->|抽出| LAND
 EXT -->|一括転送| LAND
 
-%% Event-driven ingestion
 LAND -.->|オブジェクト確定| PS
 PS -.->|トリガー| DF
 DF -->|検証 · タグ付け| RAW
 
-%% Orchestrated batch: raw -> staging
 ORC -.->|スケジュール| DF
 ORC -.->|スケジュール| DPC
 RAW -->|ソース| DF
@@ -105,7 +102,6 @@ RAW -->|Sparkソース| DPC
 DF -->|出力| STG
 DPC -->|出力| STG
 
-%% Curated -> analytics
 STG -->|昇格（本番反映）| CUR
 CUR -->|ロードジョブ| BQ
 CUR -.->|外部テーブル| BQ

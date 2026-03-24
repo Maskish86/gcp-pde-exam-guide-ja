@@ -57,31 +57,25 @@ subgraph OR["オーケストレーション"]
     O1[Composer / Workflows]
 end
 
-%% Sources -> Ingestion
 A1 -->|イベント| B1
 A2 -->|変更データキャプチャ（CDC）| B3
 A3 -->|ファイル| B2
 
-%% Ingestion -> Processing & Storage
 B1 -->|ストリーム| C1
 B2 -->|バッチ| C1
 B2 -->|ロードジョブ| D1
 B3 -->|レプリケーション| D1
 
-%% Processing -> Storage & Serving
 C1 -->|ストリーミング書き込み| D1
 C1 -->|低レイテンシ書き込み| E1
 
-%% BigQuery ELT layers
 D1 -->|ELT入力| C2
 C2 -->|SQL変換処理| D2
 D2 -->|昇格（本番反映）| D3
 
-%% Consumption
 D3 -->|分析| F1
 E1 -->|サービング| F2
 
-%% Orchestration (dashed)
 O1 -.->|スケジュール| C1
 O1 -.->|トリガー| C2
 ```
