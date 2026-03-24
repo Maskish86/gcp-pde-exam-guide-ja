@@ -75,10 +75,10 @@ Firestore は、運用ワークロード向けのGCPサーバレス ドキュメ
 - パイプラインはサービス間アクセスを優先する。
 
 ## 連携
-- Cloud Functions: trigger on document create/update/delete.
-- Cloud Run: read/write operational state for services.
-- [[Processing/Dataflow|Dataflow]]: sync operational state or metadata.
-- [[Storage/BigQuery|BigQuery]]: export for analytics (via export or Dataflow).
+- Cloud Functions: ドキュメント作成/更新/削除でトリガー。
+- Cloud Run: サービス向けの運用状態の読み書き。
+- [[Processing/Dataflow|Dataflow]]: 運用状態またはメタデータの同期。
+- [[Storage/BigQuery|BigQuery]]: 分析向けのエクスポート（エクスポートまたはDataflow経由）。
 
 ## 監視と運用
 - read/writeレートとレイテンシを追跡する。
@@ -86,10 +86,10 @@ Firestore は、運用ワークロード向けのGCPサーバレス ドキュメ
 - インデックス構築時間と失敗を監視する。
 
 ## よくある落とし穴
-- Assuming SQL joins or complex aggregations.
-- Unindexed queries failing at runtime.
-- Hot document writes causing contention.
-- Overlooking cost impact of frequent reads.
+- SQLのjoinや複雑な集計を想定する。
+- インデックスなしのクエリが実行時に失敗する。
+- ホットドキュメント書き込みが競合を引き起こす。
+- 頻繁な読み取りのコスト影響を見落とす。
 
 ## クイックチェックリスト
 - コレクション、ドキュメントキー、アクセスパターンを定義する。

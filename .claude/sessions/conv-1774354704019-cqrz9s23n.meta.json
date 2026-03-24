@@ -3,17 +3,17 @@
   "title": "Translate GCP PDE Vault to Japanese",
   "titleGenerationStatus": "success",
   "createdAt": 1774354704066,
-  "updatedAt": 1774354853586,
-  "lastResponseAt": 1774354853586,
+  "updatedAt": 1774357021532,
+  "lastResponseAt": 1774357021532,
   "sessionId": "35d2ac6b-80f6-4ea8-8858-fef8e1c8bf0b",
   "sdkSessionId": "35d2ac6b-80f6-4ea8-8858-fef8e1c8bf0b",
   "usage": {
     "model": "haiku",
     "inputTokens": 8,
-    "cacheCreationInputTokens": 1232,
-    "cacheReadInputTokens": 37934,
+    "cacheCreationInputTokens": 550,
+    "cacheReadInputTokens": 40228,
     "contextWindow": 200000,
-    "contextTokens": 39174,
+    "contextTokens": 40786,
     "percentage": 20
   }
 }

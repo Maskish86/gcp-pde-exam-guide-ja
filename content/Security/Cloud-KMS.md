@@ -48,13 +48,13 @@ gcloud storage buckets update gs://my-bucket \
 デフォルトCMEKを設定しないと、後続アップロードが黙ってGMEK（Google管理暗号化）になることがある。必ず両方を設定する。
 
 **鍵侵害時の対応:**
-1. Create a new key and set it as the bucket/dataset default.
-2. Rewrite/copy existing data — rotation alone does not re-encrypt stored objects.
+1. 新しい鍵を作成し、バケット/データセットのデフォルトとして設定する。
+2. 既存データを再書き込み/コピーする — ローテーションだけでは保存オブジェクトを再暗号化しない。
 3. 再暗号化を確認した後、侵害鍵をdisableし、その後destroyする。
 
 ## HSM と Cloud EKM
 
-**Cloud HSM:** Keys backed by tamper-resistant hardware; cryptographic operations occur inside the HSM, raw key material never exposed. Use when compliance requires hardware assurance.
+**Cloud HSM:** タンパー耐性ハードウェアに基づいた鍵。暗号化操作はHSM内で発生し、生の鍵マテリアルは露出しない。コンプライアンス要件がハードウェア保証を必要とする場合に使う。
 
 **Cloud EKM:** 鍵マテリアルはon-prem HSMまたは外部キー管理に残る。GCPサービスはEKMバックのKMS鍵をCMEKとして使う（暗号化自体はGoogle管理だが、鍵はGoogle Cloudに入らない）。
 
@@ -68,39 +68,39 @@ gcloud storage buckets update gs://my-bucket \
 
 ## アクセス制御とIAM
 
-| Role | Use For |
+| ロール | 用途 |
 | --- | --- |
-| `roles/cloudkms.cryptoKeyEncrypterDecrypter` | Pipeline service accounts (encrypt + decrypt) |
-| `roles/cloudkms.cryptoKeyEncrypter` | Write-only pipelines (encrypt only) |
-| `roles/cloudkms.admin` | Key management — use sparingly, separate from key users |
+| `roles/cloudkms.cryptoKeyEncrypterDecrypter` | パイプラインサービスアカウント（暗号化 + 復号） |
+| `roles/cloudkms.cryptoKeyEncrypter` | 書き込み専用パイプライン（暗号化のみ） |
+| `roles/cloudkms.admin` | 鍵管理 — 控えめに使い、鍵ユーザーと分離する |
 
-- Scope access by project and key ring, not globally.
-- Separate key admins from key users — principle of least privilege.
+- プロジェクトとキーリング単位でスコープをアクセスする（グローバルではなく）。
+- 鍵管理者と鍵ユーザーを分離する — 最小権限の原則。
 
 ## 監査とコンプライアンス
 - すべての鍵操作（create/use/disable/destroy）はCloud Audit Logsに記録される。
-- Track decrypt events and policy changes to satisfy compliance requirements.
-- Align rotation periods and log retention with your compliance framework.
+- 復号イベントとポリシー変更を追跡し、コンプライアンス要件を満たす。
+- ローテーション期間とログ保持期間をコンプライアンスフレームワークに合わせる。
 
 ## よくある落とし穴
 - すべての暗号化データの再暗号化前にkey versionをdestroyする — destroyは不可逆で永続的なデータ損失を招く。まずdisableし、そのversionを参照する稼働データがないことを確認してからdestroyする。
-- One key for everything — a compromised or misconfigured key affects all protected data; scope keys by data domain or sensitivity tier, and separate key rings by environment.
-- Forgetting to grant `cryptoKeyEncrypterDecrypter` to service accounts — operations fail silently with permission denied; the resource (BigQuery, GCS) holds the data but the service account needs explicit IAM on the key itself.
-- Key rotation does not re-encrypt existing data — rotation creates a new primary version for future operations only; existing objects remain encrypted under the old version; explicitly rewrite or copy objects to re-encrypt them.
-- Setting per-operation CMEK without a bucket or dataset default — future writes can silently fall back to GMEK (Google-managed encryption); always set the default CMEK on the resource, not just per-operation.
-- Assuming CMEK satisfies privacy or PII requirements — CMEK controls encryption at rest, not data content; use [[Security/DLP|DLP]] for de-identification and PII redaction separately.
-- Mismatched regions between KMS key and protected resource — cross-region key use adds latency and may violate data residency policy; key ring region must match the resource region; global keys bypass residency guarantees.
+- すべてに同じ鍵を使う — 侵害された または 設定ミスの鍵は保護データ全体に影響する。データドメインや機微度レベル別にキーをスコープし、環境別にキーリングを分離する。
+- サービスアカウントへ `cryptoKeyEncrypterDecrypter` 付与を忘れる — 操作は黙って権限拒否で失敗する。リソース（BigQuery、GCS）はデータを保持するが、サービスアカウントは鍵自体に明示的なIAMが必要。
+- ローテーションは既存データを再暗号化しない — ローテーションは将来の操作向けの新しいprimary versionを作るだけで、既存オブジェクトは旧versionで暗号化されたままになる。明示的に再書き込み/コピーして再暗号化する。
+- 操作単位のCMEK設定をしてバケット/データセットのデフォルトがない — 将来の書き込みが黙ってGMEK（Google管理暗号化）にフォールバックしうる。操作単位だけでなく、リソースのデフォルトCMEKを必ず設定する。
+- CMEKがプライバシーやPII要件を満たすと仮定する — CMEKは保存時の暗号化を制御するだけで、データコンテンツは制御しない。匿名化やPII マスキングには [[Security/DLP|DLP]] を別途使う。
+- KMS鍵と保護リソース間でリージョンが不一致 — クロスリージョン鍵使用はレイテンシを増やし、データレジデンシーポリシー違反になりうる。キーリングリージョンはリソースリージョンと一致させる。グローバル鍵はレジデンシー保証をバイパスする。
 
 ## 連携
-- [[Cloud-Storage|Cloud Storage]]: bucket default CMEK for all new object writes.
-- [[Storage/BigQuery|BigQuery]]: dataset/table CMEK and job-level CMEK for query workers.
-- [[Processing/Dataflow|Dataflow]] / [[Processing/Dataproc|Dataproc]]: CMEK for worker disks and pipeline staging data.
-- [[Security/IAM|IAM]]: least-privilege roles for key usage and key administration.
+- [[Cloud-Storage|Cloud Storage]]: すべての新規オブジェクト書き込み向けバケットデフォルトCMEK。
+- [[Storage/BigQuery|BigQuery]]: データセット/テーブルCMEKおよびクエリワーカー向けジョブレベルCMEK。
+- [[Processing/Dataflow|Dataflow]] / [[Processing/Dataproc|Dataproc]]: ワーカーディスクとパイプラインステージングデータ向けCMEK。
+- [[Security/IAM|IAM]]: 鍵使用と管理向けの最小権限ロール。
 
 ## クイックチェックリスト
--  Choose region and align with data residency requirements.
--  Decide: symmetric vs asymmetric, software vs HSM vs EKM.
--  Set rotation policy and document recovery/re-encryption steps.
--  Grant least-privilege IAM — separate key admins from key users.
--  Set bucket/dataset default CMEK, not just per-operation keys.
--  Enable Cloud Audit Log monitoring for key usage and policy changes.
+- リージョンを選び、データレジデンシー要件に合わせる。
+- 決める：対称 vs 非対称、ソフトウェア vs HSM vs EKM。
+- ローテーションポリシーを設定し、復旧/再暗号化ステップを文書化する。
+- 最小権限IAMを付与 — 鍵管理者とユーザーを分離する。
+- 操作単位のキーではなく、バケット/データセットのデフォルトCMEKを設定する。
+- 鍵使用とポリシー変更向けCloud Audit Logの監視を有効化する。

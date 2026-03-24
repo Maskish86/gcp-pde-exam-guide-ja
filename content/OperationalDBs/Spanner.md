@@ -30,21 +30,21 @@ Spanner は、強整合を保ちながらスケールする、GCPのグローバ
 - 主キー先頭が連番（または時間順）の場合、新規書き込みの大半が同一splitに集中し、ホットスポットになる。
 - キー設計の目標：主キー先頭の要素を、キー範囲に均等に分布させる。
 
-| Key Pattern                           | Choose When                             | Why It Works                             | Why the Wrong Choice Fails                                       |
+| Key Pattern                           | 選ぶ条件                                | 動作する理由                             | 間違った選択が失敗する理由                                       |
 | ------------------------------------- | --------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------- |
-| `PRIMARY KEY (hash_user_id, user_id)` | High write rate by entity id            | Hash prefix spreads writes across splits | `PRIMARY KEY (user_id)` or sequential ids can concentrate writes |
-| `PRIMARY KEY (bit_reversed_id)`       | Need sequence-like ids without hotspots | Bit reversal scatters sequential inserts | Plain increasing sequence keeps appending to a hot split         |
+| `PRIMARY KEY (hash_user_id, user_id)` | エンティティIDでの高い書き込み率        | ハッシュプレフィックスが書き込みをsplit全体に分散させる | `PRIMARY KEY (user_id)` または連番IDは書き込みを集中させる |
+| `PRIMARY KEY (bit_reversed_id)`       | ホットスポットのない連番風IDが必要      | ビット反転が連番挿入を散らす             | プレーンな増加連番は同一ホットsplitへの追加を続ける         |
 
 - よくある罠：高頻度取り込みテーブルで、先頭キー列にtimestamp/auto-incrementを置く。
 
 **Interleaved tables:**
 
-| Option | Use When | Why |
+| オプション | 使用する場合 | 理由 |
 | --- | --- | --- |
 | Interleaved child table | 子行を親行と一緒に読むことが多い | 親キー接頭辞で子行を同居させ、cross-split joinを減らす |
 | Non-interleaved child table | 親と子を独立にクエリする | 柔軟だが、親子joinが分散して遅くなりうる |
 
-- Rule: child primary key must start with the full parent primary key.
+- ルール：子の主キーは親の完全な主キーで始まる必要があります。
 ```sql
 INTERLEAVE IN PARENT Orders ON DELETE CASCADE
 ```

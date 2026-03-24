@@ -57,7 +57,9 @@ subgraph DF["Dataflow - Apache Beam"]
     TRG["トリガー<br/>(早期 · オンタイム · 遅延)"]
     TR["PTransforms<br/>(マップ · フィルタ · エンリッチ · 集計)"]
     DLQ["デッドレター出力<br/>(不正レコード)"]
-    WIN --> WM --> TRG --> TR
+    WIN --> WM
+    WM --> TRG
+    TRG --> TR
     TR -.->|パース/スキーマエラー| DLQ
 end
 

@@ -26,7 +26,7 @@ subgraph S["ソース"]
     A3[外部ファイル]
 end
 
-subgraph I["取り込み(Ingestion)"]
+subgraph I["取り込み（Ingestion）"]
     B1[Pub/Sub]
     B2[Cloud Storage]
     B3[Datastream]
@@ -59,7 +59,7 @@ end
 
 %% Sources -> Ingestion
 A1 -->|イベント| B1
-A2 -->|変更データキャプチャ(CDC)| B3
+A2 -->|変更データキャプチャ（CDC）| B3
 A3 -->|ファイル| B2
 
 %% Ingestion -> Processing & Storage

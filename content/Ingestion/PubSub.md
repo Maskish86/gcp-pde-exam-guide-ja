@@ -94,11 +94,11 @@ Pub/Subはpublish時にスキーマを強制でき、違反するメッセージ
 - バックログ増加やメッセージ経過時間の増加にアラートを設定する。
 - リトライポリシーとDLQで、パイプラインの詰まりを防ぐ。
 
-**Subscription lag signals:**
-- `subscription/num_undelivered_messages` — backlog (undelivered + unacked messages).
-- `subscription/oldest_unacknowledged_message_age` — max wait time; rising values mean consumers are falling behind.
+**サブスクリプションラグシグナル:**
+- `subscription/num_undelivered_messages` — バックログ（未配信 + 未ACKメッセージ）。
+- `subscription/oldest_unacknowledged_message_age` — 最大待機時間。値が上昇するとコンシューマが遅延している。
 
-**Outage recovery:**
+**障害復旧:**
 - Dataflowの再起動やCloud Storageからの再ロードより、**Pub/Sub Seek**（保持期間内のリプレイ）を優先する。
 - ルール：seek可能期間 ≥ RPO + 検知/復旧の遅れ。重複は起きる前提で、sinkを冪等にする。
 

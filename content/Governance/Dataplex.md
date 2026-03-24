@@ -58,10 +58,10 @@ Dataplex は、[[Cloud-Storage|Cloud-Storage]] と [[Storage/BigQuery|BigQuery]]
 - Dataplex と [[Governance/Data-Catalog|Data Catalog]] を混同する — Data Catalogは個別資産の発見/タグ付け/メタデータ検索。Dataplexはlakeレベルのガバナンス、zone管理、データ品質スキャン、ドメイン全体の統合ポリシーを提供する。
 
 ## 連携
-- [[Cloud-Storage|Cloud-Storage]]: lake storage assets.
-- [[Storage/BigQuery|BigQuery]]: warehouse datasets as assets.
-- [[Processing/Dataflow|Dataflow]] / [[Processing/Dataproc|Dataproc]]: processing pipelines that write into Dataplex-managed zones.
-- [[Security/IAM|IAM]]: access control foundation.
+- [[Cloud-Storage|Cloud Storage]]: レイク内のストレージアセット。
+- [[Storage/BigQuery|BigQuery]]: ウェアハウスのデータセットをアセット化。
+- [[Processing/Dataflow|Dataflow]] / [[Processing/Dataproc|Dataproc]]: Dataplexマネージドゾーンへ書き込むプロセッシングパイプライン。
+- [[Security/IAM|IAM]]: アクセス制御基盤。
 
 ## BigLake 
 BigLake は、[[Cloud-Storage|Cloud Storage]] と [[Storage/BigQuery|BigQuery]] のデータに対し、一貫したアクセス制御とガバナンスを提供する統合ストレージレイヤーである。データを移動せずに、BigQuery風の権限ときめ細かなアクセスをレイク/ウェアハウス横断で適用できる。

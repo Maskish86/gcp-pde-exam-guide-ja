@@ -63,7 +63,7 @@ flowchart TB
 
 subgraph SRC["ソース"]
     APP[アプリケーション]
-    CDC["運用DB<br/>(変更データキャプチャ(CDC)・抽出)"]
+    CDC["運用DB<br/>（変更データキャプチャ（CDC）・抽出）"]
     EXT[外部 / オンプレミス]
 end
 
@@ -72,7 +72,9 @@ subgraph GCS["GCS - データレイクゾーン"]
     RAW["raw/<br/>(追記専用)"]
     STG["staging/<br/>(短期保持)"]
     CUR["curated/<br/>(分析向け)"]
-    LAND ~~~ RAW ~~~ STG ~~~ CUR
+    LAND ~~~ RAW
+    RAW ~~~ STG
+    STG ~~~ CUR
 end
 
 PS[Pub/Sub]
@@ -104,7 +106,7 @@ DF -->|出力| STG
 DPC -->|出力| STG
 
 %% Curated -> analytics
-STG -->|昇格(本番反映)| CUR
+STG -->|昇格（本番反映）| CUR
 CUR -->|ロードジョブ| BQ
 CUR -.->|外部テーブル| BQ
 ```

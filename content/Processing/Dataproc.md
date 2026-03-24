@@ -99,7 +99,7 @@ Dataproc Metastore は、GCPのフルマネージド Apache Hive Metastore（HMS
 - **重要な理由:** 一時クラスタは削除で組み込みmetastoreを失う。Dataproc Metastore はクラスタ再作成後も残り、複数クラスタで共有できる。
 - **使う場面:** 複数のDataprocクラスタでテーブル定義を共有したい、または一時クラスタのライフサイクルをまたいでメタデータを保持したい場合。
 - Dataproc上で動くSpark SQL、Hive、Presto/Trinoジョブと統合される。
-- [[Governance/Dataplex|Dataplex]] can use it as a technical metadata catalog for unified governance across the data lake.
+- [[Governance/Dataplex|Dataplex]] は、データレイク全体の統一ガバナンス向けに技術メタデータカタログとして使える。
 
 ## Hadoop Modernization
 on-prem Hadoop を、オーケストレーション変更を最小にしてGCPへ移行する場合:

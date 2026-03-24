@@ -27,12 +27,12 @@ Cloud Logging は、GCPサービスとアプリケーションのログデータ
 - aggregated sinksでプロジェクト横断のログを集約する。
 
 ## 連携
-- [[Cloud-Monitoring|Cloud-Monitoring]]: alert on log-based metrics.
-- [[Processing/Dataflow|Dataflow]]: job and worker logs.
-- [[Processing/Dataproc|Dataproc]]: cluster and job logs.
-- [[Storage/BigQuery|BigQuery]]: log export destination.
-- [[Cloud-Storage|Cloud Storage]]: log archive destination.
-- [[Ingestion/PubSub|Pub/Sub]]: stream logs to downstream consumers.
+- [[Cloud-Monitoring|Cloud Monitoring]]: ログベースメトリクスにアラート。
+- [[Processing/Dataflow|Dataflow]]: ジョブとワーカーのログ。
+- [[Processing/Dataproc|Dataproc]]: クラスタとジョブのログ。
+- [[Storage/BigQuery|BigQuery]]: ログエクスポート先。
+- [[Cloud-Storage|Cloud Storage]]: ログアーカイブ先。
+- [[Ingestion/PubSub|Pub/Sub]]: 下流コンシューマへのログストリーム。
 
 ## セキュリティとアクセス制御
 - ログアクセスには最小権限の [[Security/IAM|IAM]] ロールを使う。
